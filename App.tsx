@@ -285,7 +285,7 @@ const App: React.FC = () => {
     return !!systemRules.rolePermissions?.[currentUser.role]?.allowedViews?.includes(viewId);
   };
 
-  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
+  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} users={allUsers} />;
 
   const renderSidebarContent = () => {
     const isConnected = dirHandle && dirPermission === 'granted';
