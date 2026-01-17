@@ -1,14 +1,13 @@
 
 import React, { useState } from 'react';
-import { User, UserRole } from '../types';
-import { generateId } from '../utils/dataLogic';
+import { User } from '../types';
 
-interface LoginScreenProps {
+export interface LoginScreenProps {
   onLogin: (user: User) => void;
   users: User[];
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, users }) => {
+export default function LoginScreen({ onLogin, users }: LoginScreenProps) {
   const [email, setEmail] = useState(() => {
     return localStorage.getItem('lastUsedEmail') || '@hejiaxing.ai';
   });
@@ -24,18 +23,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, users }) => {
     // 模擬驗證延遲
     setTimeout(() => {
       try {
-        // 比對清單中是否存在此 Email
-        const matchedUser = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
+        const trimmedEmail = email.trim().toLowerCase();
+        // 執行比對：從系統使用者名單中尋找匹配的 Email
+        const matchedUser = users.find(u => u.email.toLowerCase() === trimmedEmail);
 
         if (matchedUser) {
-          // 儲存上次使用的 Email
-          localStorage.setItem('lastUsedEmail', email);
+          // 成功比對：儲存最後使用的帳號並執行登入
+          localStorage.setItem('lastUsedEmail', trimmedEmail);
           localStorage.setItem('lastUsedRole', matchedUser.role);
           
-          // 成功登入
           onLogin(matchedUser);
         } else {
-          // Email 不存在
+          // 比對失敗：Email 不在名單中
           alert("登入失敗：此電子郵件尚未註冊於系統中。請聯繫管理員新增帳號。");
         }
       } catch (err) { 
@@ -69,7 +68,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, users }) => {
                 className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none transition focus:ring-2 focus:ring-blue-500 focus:bg-white font-medium shadow-inner" 
               />
               <p className="mt-3 text-[11px] text-slate-400 font-medium leading-relaxed">
-                系統將自動根據您的帳號判斷存取權限。
+                系統將自動根據您的帳號設定判斷存取權限。
               </p>
             </div>
             
@@ -81,9 +80,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, users }) => {
               {loading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  <span>驗證身分中...</span>
+                  <span>身份驗證中...</span>
                 </div>
-              ) : "進入管理系統"}
+              ) : "登入系統"}
             </button>
           </form>
         </div>
@@ -95,6 +94,4 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, users }) => {
       </div>
     </div>
   );
-};
-
-export default LoginScreen;
+}
