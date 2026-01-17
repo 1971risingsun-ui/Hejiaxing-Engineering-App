@@ -8,6 +8,7 @@ export const PERMISSION_STRUCTURE = [
     { id: 'daily_dispatch', label: '明日工作排程' },
     { id: 'driving_time', label: '估計行車時間' },
     { id: 'weekly_schedule', label: '週間工作排程' },
+    { id: 'report_tracking', label: '回報追蹤表' },
     { id: 'outsourcing', label: '外包廠商管理' },
     { id: 'engineering_groups', label: '工程小組設定' },
   ]},
@@ -38,15 +39,15 @@ export const DEFAULT_SYSTEM_RULES: SystemRules = {
   rolePermissions: {
     [UserRole.ADMIN]: { 
       displayName: '管理員', 
-      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'outsourcing', 'engineering_groups', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report', 'users'] 
+      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report_tracking', 'outsourcing', 'engineering_groups', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report', 'users'] 
     },
     [UserRole.MANAGER]: { 
       displayName: '專案經理', 
-      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'outsourcing', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report'] 
+      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report_tracking', 'outsourcing', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report'] 
     },
     [UserRole.ENGINEERING]: { 
       displayName: '工務人員', 
-      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report'] 
+      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report', 'report_tracking'] 
     },
     [UserRole.FACTORY]: { 
       displayName: '廠務人員', 
@@ -54,7 +55,7 @@ export const DEFAULT_SYSTEM_RULES: SystemRules = {
     },
     [UserRole.WORKER]: { 
       displayName: '現場人員', 
-      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'report'] 
+      allowedViews: ['engineering','report'] 
     }
   },
   materialFormulas: [

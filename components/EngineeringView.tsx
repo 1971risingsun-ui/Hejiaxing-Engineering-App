@@ -1,10 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { Project, User, ProjectStatus, ProjectType, GlobalTeamConfigs, SystemRules, Employee, AttendanceRecord, CompletionReport } from '../types';
+import { Project, User, ProjectStatus, ProjectType, GlobalTeamConfigs, SystemRules, Employee, AttendanceRecord, CompletionReport, DailyReport, ConstructionItem } from '../types';
 import ProjectList from './ProjectList';
 import ExcelJS from 'exceljs';
 import { downloadBlob } from '../utils/fileHelpers';
 import { generateId } from '../utils/dataLogic';
-// Fix: Add missing LoaderIcon import
 import { LoaderIcon } from './Icons';
 
 declare const XLSX: any;
@@ -34,13 +33,23 @@ const EngineeringView: React.FC<EngineeringViewProps> = ({
   handleDeleteProject, onAddToSchedule, onOpenDrivingTime, globalTeamConfigs 
 }) => {
   const excelInputRef = useRef<HTMLInputElement>(null);
-  const recordInputRef = useRef<HTMLInputElement>(null);
-  const reportInputRef = useRef<HTMLInputElement>(null);
-  const completionInputRef = useRef<HTMLInputElement>(null);
+  const recordInputRef = useRef<HTMLInputElement>(null); // Excel 施工紀錄
+  const reportInputRef = useRef<HTMLInputElement>(null); // PDF 施工報告
+  const completionInputRef = useRef<HTMLInputElement>(null); // PDF 完工報告
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // 解析 PDF Metadata (用於施工紀錄/報告匯入)
-  const handleImportPDFMetadata = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 安全取得 Excel 儲存格字串
+  const getSafeText = (cell: ExcelJS.Cell): string => {
+    const val = cell.value;
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'object' && 'richText' in val) {
+      return (val as any).richText.map((segment: any) => segment.text || '').join('');
+    }
+    return String(val);
+  };
+
+  // 1. 完工報告匯入：解析 PDF Metadata
+  const handleImportCompletionPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || typeof pdfjsLib === 'undefined') return;
     setIsProcessing(true);
@@ -58,41 +67,26 @@ const EngineeringView: React.FC<EngineeringViewProps> = ({
       const targetProject = projects.find(p => p.id === pInfo.id || p.name === pInfo.name);
       if (!targetProject) throw new Error(`系統中找不到對應案場：${pInfo.name}`);
 
-      // 建立新的施工細項與日誌
       const updatedProjects = projects.map(p => {
         if (p.id === targetProject.id) {
-          const newItems = rData.items.map((i: any) => ({
+          const newReport: CompletionReport = {
             id: generateId(),
-            ...i,
             date: rData.date,
             worker: rData.worker,
-            assistant: rData.assistant
-          }));
-          
-          const filteredItems = (p.constructionItems || []).filter(item => item.date !== rData.date);
-          const otherReports = (p.reports || []).filter(r => r.date !== rData.date);
-          
-          return {
-            ...p,
-            constructionItems: [...filteredItems, ...newItems],
-            reports: [...otherReports, {
-              id: generateId(),
-              date: rData.date,
-              weather: rData.weather,
-              content: rData.content,
-              reporter: currentUser.name,
-              timestamp: Date.now(),
-              worker: rData.worker,
-              assistant: rData.assistant
-            }]
+            items: rData.items,
+            notes: rData.content || '',
+            signature: '',
+            timestamp: Date.now()
           };
+          const others = (p.completionReports || []).filter(r => r.date !== rData.date);
+          return { ...p, completionReports: [...others, newReport] };
         }
         return p;
       });
 
       setProjects(updatedProjects);
-      updateLastAction(targetProject.name, `[${targetProject.name}] 透過 PDF 匯入施工數據 (${rData.date})`);
-      alert(`匯入成功！已更新案場「${targetProject.name}」於 ${rData.date} 的紀錄。`);
+      updateLastAction(targetProject.name, `[${targetProject.name}] 透過 PDF 匯入完工報告 (${rData.date})`);
+      alert(`匯入成功！已更新案場「${targetProject.name}」的完工報告。`);
     } catch (error: any) {
       alert('匯入失敗: ' + error.message);
     } finally {
@@ -101,8 +95,74 @@ const EngineeringView: React.FC<EngineeringViewProps> = ({
     }
   };
 
-  // 解析 Excel (用於批量匯入完工報告)
-  const handleImportCompletionExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 2. 施工報告匯入：解析 PDF Metadata (與完工報告邏輯相似，但更新至施工日誌)
+  const handleImportConstructionReportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || typeof pdfjsLib === 'undefined') return;
+    setIsProcessing(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+      const metadata = await pdf.getMetadata();
+      const rawJson = metadata.info?.Subject;
+      
+      if (!rawJson) throw new Error('此 PDF 檔案不包含有效的系統數據。');
+      
+      const embeddedData = JSON.parse(rawJson);
+      const { project: pInfo, record: rData } = embeddedData;
+      
+      const targetProject = projects.find(p => p.id === pInfo.id || p.name === pInfo.name);
+      if (!targetProject) throw new Error(`系統中找不到對應案場：${pInfo.name}`);
+
+      const updatedProjects = projects.map(p => {
+        if (p.id === targetProject.id) {
+          // 轉換施工品項
+          const newItems: ConstructionItem[] = (rData.items || []).map((item: any) => ({
+              id: generateId(),
+              name: item.name,
+              quantity: item.quantity,
+              unit: item.unit,
+              location: item.location || '',
+              worker: rData.worker,
+              assistant: rData.assistant || '',
+              date: rData.date
+          }));
+
+          // 過濾掉同一天的舊項目
+          const filteredItems = (p.constructionItems || []).filter(item => item.date !== rData.date);
+          const otherReports = (p.reports || []).filter(r => r.date !== rData.date);
+
+          return { 
+              ...p, 
+              constructionItems: [...filteredItems, ...newItems],
+              reports: [...otherReports, {
+                  id: generateId(),
+                  date: rData.date,
+                  weather: rData.weather || 'sunny',
+                  content: rData.content || '',
+                  reporter: currentUser.name,
+                  timestamp: Date.now(),
+                  worker: rData.worker,
+                  assistant: rData.assistant || ''
+              }]
+          };
+        }
+        return p;
+      });
+
+      setProjects(updatedProjects);
+      updateLastAction(targetProject.name, `[${targetProject.name}] 透過 PDF 匯入施工報告 (${rData.date})`);
+      alert(`匯入成功！已更新案場「${targetProject.name}」的施工日誌。`);
+    } catch (error: any) {
+      alert('匯入失敗: ' + error.message);
+    } finally {
+      setIsProcessing(false);
+      e.target.value = '';
+    }
+  };
+
+  // 3. 施工紀錄匯入：解析 Excel
+  const handleImportConstructionExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setIsProcessing(true);
@@ -112,53 +172,72 @@ const EngineeringView: React.FC<EngineeringViewProps> = ({
       const worksheet = workbook.getWorksheet(1);
       if (!worksheet) throw new Error('找不到工作表');
 
-      const titleVal = worksheet.getCell('A1').value?.toString() || '';
+      // 解析標題獲取案名
+      const titleVal = getSafeText(worksheet.getCell('A1'));
       const projName = titleVal.includes('-') ? titleVal.split('-')[1].trim() : titleVal;
       const targetProject = projects.find(p => p.name.includes(projName) || projName.includes(p.name));
       
       if (!targetProject) throw new Error(`系統中找不到對應案場：${projName}`);
 
-      const reportDate = worksheet.getCell('B2').value?.toString() || '';
-      const worker = worksheet.getCell('B3').value?.toString() || '';
-      const notes = worksheet.getCell('A10').value?.toString() || '';
+      const reportDate = getSafeText(worksheet.getCell('B2'));
+      const personnelInfo = getSafeText(worksheet.getCell('B3')); // 格式: 師傅: XXX / 助手: YYY
+      const weatherText = getSafeText(worksheet.getCell('B4'));
+      const notes = getSafeText(worksheet.getCell('A10'));
       
+      const workerMatch = personnelInfo.match(/師傅:\s*([^/]*)/);
+      const assistantMatch = personnelInfo.match(/助手:\s*(.*)/);
+      const worker = workerMatch ? workerMatch[1].trim() : '';
+      const assistant = assistantMatch ? assistantMatch[1].trim() : '';
+
       const items: any[] = [];
       worksheet.eachRow((row, rowNumber) => {
+          // 從第 7 列開始是施工品項
           if (rowNumber >= 7 && rowNumber < 10) {
-              const name = row.getCell(2).value?.toString();
-              if (name) {
+              const name = getSafeText(row.getCell(2));
+              if (name && name !== '無施工項目') {
                   items.push({
+                      id: generateId(),
                       name,
-                      action: row.getCell(3).value?.toString().includes('裝') ? 'install' : 'dismantle',
-                      quantity: row.getCell(5).value?.toString() || '0',
-                      unit: row.getCell(6).value?.toString() || '',
-                      category: 'OTHER'
+                      quantity: getSafeText(row.getCell(3)),
+                      unit: getSafeText(row.getCell(4)),
+                      location: getSafeText(row.getCell(5)),
+                      worker,
+                      assistant,
+                      date: reportDate
                   });
               }
           }
       });
 
-      const newReport: CompletionReport = {
-          id: generateId(),
-          date: reportDate,
-          worker: worker,
-          items,
-          notes,
-          signature: '',
-          timestamp: Date.now()
-      };
-
       const updatedProjects = projects.map(p => {
           if (p.id === targetProject.id) {
-              const others = (p.completionReports || []).filter(r => r.date !== reportDate);
-              return { ...p, completionReports: [...others, newReport] };
+              const filteredItems = (p.constructionItems || []).filter(item => item.date !== reportDate);
+              const otherReports = (p.reports || []).filter(r => r.date !== reportDate);
+              
+              const weatherMap: Record<string, any> = { '晴天': 'sunny', '陰天': 'cloudy', '雨天': 'rainy' };
+              const weather = weatherMap[weatherText] || 'sunny';
+
+              return { 
+                  ...p, 
+                  constructionItems: [...filteredItems, ...items],
+                  reports: [...otherReports, {
+                      id: generateId(),
+                      date: reportDate,
+                      weather,
+                      content: notes,
+                      reporter: currentUser.name,
+                      timestamp: Date.now(),
+                      worker,
+                      assistant
+                  }]
+              };
           }
           return p;
       });
 
       setProjects(updatedProjects);
-      updateLastAction(targetProject.name, `[${targetProject.name}] 匯入完工報告 (${reportDate})`);
-      alert(`完工報告匯入成功！案場：${targetProject.name}`);
+      updateLastAction(targetProject.name, `[${targetProject.name}] 透過 Excel 匯入施工紀錄 (${reportDate})`);
+      alert(`施工紀錄匯入成功！案場：${targetProject.name}`);
     } catch (error: any) {
       alert('匯入失敗: ' + error.message);
     } finally {
@@ -284,9 +363,9 @@ const EngineeringView: React.FC<EngineeringViewProps> = ({
         globalTeamConfigs={globalTeamConfigs} 
       />
       <input type="file" accept=".xlsx, .xls" ref={excelInputRef} className="hidden" onChange={handleImportExcel} />
-      <input type="file" accept=".pdf" ref={recordInputRef} className="hidden" onChange={handleImportPDFMetadata} />
-      <input type="file" accept=".pdf" ref={reportInputRef} className="hidden" onChange={handleImportPDFMetadata} />
-      <input type="file" accept=".xlsx, .xls" ref={completionInputRef} className="hidden" onChange={handleImportCompletionExcel} />
+      <input type="file" accept=".xlsx, .xls" ref={recordInputRef} className="hidden" onChange={handleImportConstructionExcel} />
+      <input type="file" accept=".pdf" ref={reportInputRef} className="hidden" onChange={handleImportConstructionReportPDF} />
+      <input type="file" accept=".pdf" ref={completionInputRef} className="hidden" onChange={handleImportCompletionPDF} />
       
       {isProcessing && (
         <div className="fixed inset-0 z-[200] bg-black/20 backdrop-blur-sm flex items-center justify-center">

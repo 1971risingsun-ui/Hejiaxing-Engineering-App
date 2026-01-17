@@ -78,7 +78,8 @@ const SyncDecisionCenter: React.FC<SyncDecisionCenterProps> = ({ diffs, onConfir
     onConfirm(finalSelections);
   };
 
-  const totalDiffs = Object.values(diffs).reduce((acc, curr) => acc + curr.length, 0);
+  // Fix: Explicitly cast values to SyncItem[][] to resolve 'length' access error on 'unknown'
+  const totalDiffs = (Object.values(diffs) as SyncItem[][]).reduce((acc, curr) => acc + curr.length, 0);
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 animate-fade-in">
@@ -118,7 +119,8 @@ const SyncDecisionCenter: React.FC<SyncDecisionCenterProps> = ({ diffs, onConfir
           </div>
 
           <div className="space-y-10">
-            {Object.entries(diffs).map(([cat, items]) => {
+            {/* Fix: Explicitly cast entries to resolve 'items' being treated as 'unknown' */}
+            {(Object.entries(diffs) as [string, SyncItem[]][]).map(([cat, items]) => {
               if (items.length === 0) return null;
               return (
                 <div key={cat} className="animate-fade-in">

@@ -32,7 +32,8 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault(); if (!selectedSupplierId || Object.keys(selectedMaterials).length === 0) return;
-    const poItems: PurchaseOrderItem[] = Object.entries(selectedMaterials).map(([mid, data]) => {
+    // Fix: Cast Object.entries result to a specific type to avoid "property does not exist on type 'unknown'" errors
+    const poItems: PurchaseOrderItem[] = (Object.entries(selectedMaterials) as [string, any][]).map(([mid, data]) => {
       const mat = allAvailableMaterials.find(m => m.id === mid);
       return { materialId: mid, name: mat?.name || data.name || '', quantity: data.quantity, unit: mat?.unit || data.unit || '', price: 0, notes: data.notes || mat?.notes || '', supplierId: selectedSupplierId, projectName: data.projectName || '' };
     });

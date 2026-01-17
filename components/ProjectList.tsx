@@ -190,7 +190,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                         <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
                           <ClipboardListIcon className="w-4 h-4 text-slate-500" />
                         </div>
-                        批量匯入施工紀錄 (PDF)
+                        批量匯入施工紀錄 (Excel)
                      </button>
                    )}
                    {onImportConstructionReports && (
@@ -212,7 +212,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                         <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
                           <StampIcon className="w-4 h-4 text-blue-600" />
                         </div>
-                        批量匯入完工報告 (Excel)
+                        批量匯入完工報告 (PDF)
                      </button>
                    )}
                 </div>
