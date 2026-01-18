@@ -16,9 +16,9 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: [LOGO_PATH, 'favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
-          name: '合家興行政管理系統',
-          short_name: '合家興行政',
-          description: '合家興行政管理系統',
+          name: '合家興工程日誌',
+          short_name: '合家興工程日誌',
+          description: '合家興工程日誌',
           theme_color: '#0f172a',
           background_color: '#f8fafc',
           display: 'standalone',
