@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs } from '../types';
-import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon, BoxIcon, FileTextIcon, DownloadIcon, StampIcon, UploadIcon, LanguagesIcon } from './Icons';
+import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon, BoxIcon, FileTextIcon, DownloadIcon, StampIcon, UploadIcon } from './Icons';
 
 interface ProjectListProps {
   title?: string;
@@ -19,7 +19,6 @@ interface ProjectListProps {
   onImportConstructionReports?: () => void;
   onImportCompletionReports?: () => void;
   onAddToSchedule?: (date: string, teamId: number, taskName: string) => boolean;
-  onTranslateAll?: () => Promise<void>; // 新增此行
   globalTeamConfigs?: GlobalTeamConfigs;
 }
 
@@ -27,7 +26,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
   title, projects, currentUser, lastUpdateInfo, onSelectProject, onAddProject, 
   onDeleteProject, onDuplicateProject, onEditProject, onOpenDrivingTime,
   onImportExcel, onExportExcel, onImportConstructionRecords, onImportConstructionReports, onImportCompletionReports,
-  onAddToSchedule, onTranslateAll, globalTeamConfigs 
+  onAddToSchedule, globalTeamConfigs
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'ALL'>('ALL');
@@ -36,6 +35,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [importMenuOpen, setImportMenuOpen] = useState(false);
   
+  // 排程相關狀態
   const [schedulingProject, setSchedulingProject] = useState<Project | null>(null);
   const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
   const [scheduleTeam, setScheduleTeam] = useState(1);
@@ -53,6 +53,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
         setImportMenuOpen(false);
       }
     };
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -106,6 +107,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
     return matchesSearch && matchesStatus && matchesType;
   });
 
+  const canAddProject = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER;
   const canManageProject = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER;
 
   const handleMenuClick = (e: React.MouseEvent, projectId: string) => {
@@ -154,6 +156,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
 
   return (
     <div className="p-4 md:p-6 w-full max-w-[1600px] mx-auto pb-20 md:pb-6 h-full overflow-y-auto custom-scrollbar" onClick={() => setActiveMenuId(null)}>
+      {/* Page Title & Global Actions */}
       <div className="flex flex-row items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">{title || '案件總覽'}</h1>
@@ -165,17 +168,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
           )}
         </div>
         <div className="flex gap-2">
-          {/* AI 翻譯中心 */}
-          {onTranslateAll && canManageProject && (
-            <button
-              onClick={() => { if(confirm("是否要啟動 AI 掃描所有案件內容並自動產生中越文對照翻譯？\n這可能需要一段時間。")) onTranslateAll(); }}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white w-10 h-10 rounded-full shadow-md flex items-center justify-center transition-all active:scale-95"
-              title="全域 AI 翻譯"
-            >
-              <LanguagesIcon className="w-5 h-5" />
-            </button>
-          )}
-
           {/* 批量匯入中心 */}
           {(onImportConstructionRecords || onImportConstructionReports || onImportCompletionReports) && (
             <div className="relative" ref={importMenuRef}>
@@ -237,6 +229,15 @@ const ProjectList: React.FC<ProjectListProps> = ({
               <DownloadIcon className="w-5 h-5" />
             </button>
           )}
+          {onImportExcel && (
+            <button
+              onClick={onImportExcel}
+              className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-all active:scale-95"
+              title="匯入排程表"
+            >
+              <FileTextIcon className="w-5 h-5" />
+            </button>
+          )}
           {onOpenDrivingTime && (
             <button
               onClick={onOpenDrivingTime}
@@ -246,7 +247,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
               <NavigationIcon className="w-5 h-5" />
             </button>
           )}
-          {canManageProject && (
+          {canAddProject && (
             <button
               onClick={onAddProject}
               className="bg-blue-600 hover:bg-blue-700 text-white w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-all active:scale-95"
@@ -258,21 +259,40 @@ const ProjectList: React.FC<ProjectListProps> = ({
         </div>
       </div>
 
+      {/* Unified Project Section */}
       <div className="flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        
+        {/* Category Tabs Section */}
         <div className="bg-slate-50 border-b border-slate-200">
             <div className="flex overflow-x-auto no-scrollbar">
-                {['ALL', ProjectType.CONSTRUCTION, ProjectType.MODULAR_HOUSE, ProjectType.MAINTENANCE].map(type => (
-                    <button 
-                        key={type}
-                        onClick={() => setTypeFilter(type as any)}
-                        className={`flex-1 min-w-[60px] py-2.5 px-3 text-xs font-black transition-all border-b-2 relative ${typeFilter === type ? 'bg-indigo-600 text-white border-indigo-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
-                    >
-                        {type === 'ALL' ? '全部案件' : type === ProjectType.CONSTRUCTION ? '圍籬' : type === ProjectType.MODULAR_HOUSE ? '組合屋' : '維修'}
-                    </button>
-                ))}
+                <button 
+                    onClick={() => setTypeFilter('ALL')}
+                    className={`flex-1 min-w-[60px] py-2.5 px-3 text-xs font-black transition-all border-b-2 relative ${typeFilter === 'ALL' ? 'bg-indigo-600 text-white border-indigo-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
+                >
+                    全部案件
+                </button>
+                <button 
+                    onClick={() => setTypeFilter(ProjectType.CONSTRUCTION)}
+                    className={`flex-1 min-w-[60px] py-2.5 px-3 text-xs font-black transition-all border-b-2 relative ${typeFilter === ProjectType.CONSTRUCTION ? 'bg-blue-600 text-white border-blue-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
+                >
+                    圍籬
+                </button>
+                <button 
+                    onClick={() => setTypeFilter(ProjectType.MODULAR_HOUSE)}
+                    className={`flex-1 min-w-[60px] py-2.5 px-3 text-xs font-black transition-all border-b-2 relative ${typeFilter === ProjectType.MODULAR_HOUSE ? 'bg-emerald-600 text-white border-emerald-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
+                >
+                    組合屋
+                </button>
+                <button 
+                    onClick={() => setTypeFilter(ProjectType.MAINTENANCE)}
+                    className={`flex-1 min-w-[60px] py-2.5 px-3 text-xs font-black transition-all border-b-2 relative ${typeFilter === ProjectType.MAINTENANCE ? 'bg-orange-600 text-white border-orange-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
+                >
+                    維修
+                </button>
             </div>
         </div>
 
+        {/* Toolbar Section */}
         <div className="p-4 md:p-6 border-b border-slate-100 bg-white space-y-4">
             <div className="flex flex-col md:flex-row gap-4 items-center">
                 <div className="relative flex-1 w-full">
@@ -318,6 +338,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
             </div>
         </div>
 
+        {/* Project Content Area */}
         <div className="p-4 md:p-6 bg-slate-50/30 flex-1 min-h-[400px]">
             {filteredProjects.length === 0 ? (
                 <div className="w-full py-24 text-center text-slate-400 bg-white rounded-2xl border border-dashed border-slate-300">
