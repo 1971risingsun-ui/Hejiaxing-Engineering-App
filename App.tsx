@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder, SystemRules, StockAlertItem, Tool, Asset, Vehicle } from './types';
 import EngineeringView from './components/EngineeringView';
@@ -28,7 +27,7 @@ import SyncDecisionCenter from './components/SyncDecisionCenter';
 import AuditLogList from './components/AuditLogList';
 import DrivingTimeEstimator from './components/DrivingTimeEstimator';
 import ReportTrackingView from './components/ReportTrackingView';
-import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, UsersIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon, HistoryIcon } from './components/Icons';
+import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, UsersIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon, HistoryIcon, LanguagesIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
 import { generateId, sortProjects, mergeAppState, computeDiffs, getProjectDiffMessage } from './utils/dataLogic';
@@ -39,10 +38,9 @@ import { translateProjectContent } from './services/geminiService';
 const LOGO_URL = './logo.png';
 
 const App: React.FC = () => {
-  // --- 狀態管理 ---
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([{ id: 'u-1', name: 'Admin User', email: 'admin@hejiaxing.ai', role: UserRole.ADMIN, avatar: LOGO_URL },{ id: 'u-2', name: 'Test player No.1', email: 'player.1@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-3', name: 'Test player A', email: 'player.a@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-4', name: 'Test player Z', email: 'player.z@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-5', name: 'Test player No.0', email: 'player.0@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL }]);
+  const [allUsers, setAllUsers] = useState<User[]>([{ id: 'u-1', name: 'Admin User', email: 'admin@hejiaxing.ai', role: UserRole.ADMIN, avatar: LOGO_URL }]);
   const [weeklySchedules, setWeeklySchedules] = useState<WeeklyScheduleType[]>([]);
   const [dailyDispatches, setDailyDispatches] = useState<DailyDispatchType[]>([]);
   const [globalTeamConfigs, setGlobalTeamConfigs] = useState<GlobalTeamConfigs>({});
@@ -59,7 +57,6 @@ const App: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
 
-  // --- 持久化與同步 ---
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [dirPermission, setDirPermission] = useState<'granted' | 'prompt' | 'denied'>('prompt');
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
@@ -68,20 +65,19 @@ const App: React.FC = () => {
   const [syncPending, setSyncPending] = useState<{ fileData: any, cacheData: any, diffs: any } | null>(null);
   const dbJsonInputRef = useRef<HTMLInputElement>(null);
 
-  // --- 審計日誌 Hook ---
   const { auditLogs, setAuditLogs, lastUpdateInfo, setLastUpdateInfo, updateLastAction } = useAuditTrail(currentUser);
 
-  // --- UI 控制 ---
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  // 修改：將預設 view 改為 'engineering'
-  const [view, setView] = useState<'update_log' | 'engineering' | 'engineering_hub' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'purchasing_inbounds' | 'production' | 'hr' | 'equipment' | 'equipment_tools' | 'equipment_assets' | 'equipment_vehicles' | 'report' | 'users' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'outsourcing' | 'report_tracking'>('engineering');
+  const [view, setView] = useState<'update_log' | 'engineering' | 'engineering_hub' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'purchasing_inbounds' | 'production' | 'hr' | 'equipment' | 'equipment_tools' | 'equipment_assets' | 'equipment_vehicles' | 'report' | 'users' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'outsourcing' | 'report_tracking'>('update_log');
+  
+  // 翻譯狀態控制
+  const [translationStatus, setTranslationStatus] = useState<{ active: boolean; current: number; total: number; name: string } | null>(null);
 
   const employeeNicknames = useMemo(() => employees.map(e => e.nickname || e.name).filter(Boolean), [employees]);
 
-  // --- 初始化與資料恢復中心 ---
   useEffect(() => {
     const restore = async () => {
       try {
@@ -143,21 +139,13 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
 
-  // --- 精確更新攔截器 ---
   const handleUpdateList = <T extends object>(
-    oldList: T[], 
-    newList: T[], 
-    setter: (list: T[]) => void, 
-    entityLabel: string, 
-    blockName: string = '基本資料',
-    idKey: keyof T = 'id' as keyof T
+    oldList: T[], newList: T[], setter: (list: T[]) => void, entityLabel: string, blockName: string = '基本資料', idKey: keyof T = 'id' as keyof T
   ) => {
     const getId = (item: T) => (item as any)[idKey];
     if (newList.length !== oldList.length) {
       const isAdded = newList.length > oldList.length;
-      const target = isAdded 
-        ? newList.find(n => !oldList.find(o => getId(o) === getId(n)))
-        : oldList.find(o => !newList.find(n => getId(n) === getId(o)));
+      const target = isAdded ? newList.find(n => !oldList.find(o => getId(o) === getId(n))) : oldList.find(o => !newList.find(n => getId(n) === getId(o)));
       if (target) {
         const name = (target as any).name || (target as any).plateNumber || String(getId(target));
         updateLastAction(name, `[${name}] ${isAdded ? '新增了' : '刪除了'}${entityLabel}`);
@@ -187,7 +175,6 @@ const App: React.FC = () => {
     setAttendance(newList);
   };
 
-  // --- 同步與檔案功能 ---
   const handleDirectoryAction = async (force: boolean = false) => {
     setIsWorkspaceLoading(true);
     try {
@@ -229,7 +216,7 @@ const App: React.FC = () => {
   const handleSyncConfirm = (selections: Record<string, { id: string, side: 'file' | 'cache' }[]>) => {
     if (!syncPending) return;
     const { fileData, cacheData } = syncPending;
-    const finalData = { ...mergeAppState(fileData || {}, cacheData || {}) }; 
+    const finalData = { ...mergeAppState(fileData || {}, cacheData || {})} ; 
     Object.entries(selections).forEach(([cat, list]) => {
       const catList: any[] = [];
       list.forEach(({ id, side }) => {
@@ -274,7 +261,7 @@ const App: React.FC = () => {
       const day = week.days[date] || { date, teams: {} };
       const team = day.teams[teamId] || { tasks: [] };
       if (!team.tasks.includes(taskName)) { team.tasks = [...team.tasks, taskName]; wasAdded = true; }
-      day.teams[teamId] = team; day.teams[teamId] = team; week.days[date] = day; newSchedules[wIdx] = week;
+      day.teams[teamId] = team; week.days[date] = day; newSchedules[wIdx] = week;
       return newSchedules;
     });
     if (wasAdded) updateLastAction(`排程: ${taskName}`, `[排程系統] 將 ${taskName} 加入 ${date} 第 ${teamId} 組`);
@@ -282,33 +269,42 @@ const App: React.FC = () => {
   };
 
   /**
-   * 改進後的全域翻譯處理：採用序列處理避免率限制，並確保備註被翻譯。
+   * 優化後的全域翻譯：加入進度覆蓋層，解決手機端連線延遲感。
    */
   const handleTranslateAllProjects = async () => {
+    const total = projects.length;
+    setTranslationStatus({ active: true, current: 0, total, name: '啟動中...' });
+
     const newProjects = [...projects];
     let successCount = 0;
     
-    // 採用序列處理 (Sequential) 以穩定 API 請求並方便觀察進度
-    for (let i = 0; i < newProjects.length; i++) {
+    for (let i = 0; i < total; i++) {
         const p = newProjects[i];
-        // 僅翻譯有內容的項目
+        setTranslationStatus({ active: true, current: i + 1, total, name: p.name });
+
         if (p.description || p.remarks) {
-            const translatedDesc = await translateProjectContent(p.description);
-            const translatedRemarks = await translateProjectContent(p.remarks || '');
-            
-            newProjects[i] = { 
-              ...p, 
-              description: translatedDesc || p.description, 
-              remarks: translatedRemarks || p.remarks,
-              lastModifiedAt: Date.now(),
-              lastModifiedBy: 'AI 全域翻譯'
-            };
-            successCount++;
+            try {
+                const translatedDesc = p.description ? await translateProjectContent(p.description) : '';
+                const translatedRemarks = p.remarks ? await translateProjectContent(p.remarks) : '';
+                
+                newProjects[i] = { 
+                  ...p, 
+                  description: translatedDesc || p.description, 
+                  remarks: translatedRemarks || p.remarks,
+                  lastModifiedAt: Date.now(),
+                  lastModifiedBy: 'AI 全域翻譯'
+                };
+                successCount++;
+            } catch (err) {
+                console.warn(`翻譯案場 ${p.name} 失敗，跳過。`);
+            }
         }
     }
     
     setProjects(sortProjects(newProjects));
-    updateLastAction('全域翻譯', `使用 AI 將 ${successCount} 件案件的詳細資訊翻譯為中越對照格式`);
+    updateLastAction('全域翻譯', `使用 AI 將 ${successCount} 件案件翻譯為中越對照`);
+    setTranslationStatus(null);
+    alert(`完成！共翻譯了 ${successCount} 筆案件。`);
   };
 
   const isViewAllowed = (viewId: string) => {
@@ -317,47 +313,37 @@ const App: React.FC = () => {
     return !!systemRules.rolePermissions?.[currentUser.role]?.allowedViews?.includes(viewId);
   };
 
-  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} users={allUsers} />;
+  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
 
   const renderSidebarContent = () => {
     const isConnected = dirHandle && dirPermission === 'granted';
     const isBrowserSupported = 'showDirectoryPicker' in window;
     return (
       <>
-        {/* 頂部 Logo 與公司名稱區塊 - 點擊觸發工務總覽 */}
-        <div 
-          onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} 
-          className="flex flex-col items-center justify-center w-full px-2 py-8 mb-2 hover:bg-slate-800/50 transition-colors group text-center cursor-pointer"
-        >
+        <div onClick={() => { setSelectedProject(null); setView('update_log'); setIsSidebarOpen(false); }} className="flex flex-col items-center justify-center w-full px-2 py-8 mb-2 hover:bg-slate-800/50 transition-colors group text-center cursor-pointer">
            <div className="w-20 h-20 mb-4 rounded-full bg-white p-0.5 shadow-lg border border-slate-700 transition-transform active:scale-95 group-hover:shadow-blue-500/20">
              <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain rounded-full" />
            </div>
            <h1 className="text-base font-black text-white tracking-[0.15em] border-b-2 border-yellow-500 pb-1">合家興實業</h1>
            <div className="mt-2 text-[9px] font-black bg-blue-600 px-3 py-0.5 rounded-full text-white uppercase tracking-widest">{systemRules.rolePermissions?.[currentUser.role]?.displayName || currentUser.role}</div>
         </div>
-
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar pb-10">
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">工務工程</div>
           {isViewAllowed('engineering') && <button onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering' && !selectedProject ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><LayoutGridIcon className="w-5 h-5" /> <span className="font-medium">工務總覽</span></button>}
           {isViewAllowed('engineering_hub') && <button onClick={() => { setSelectedProject(null); setView('engineering_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_hub' || ['weekly_schedule','daily_dispatch','engineering_groups','driving_time','outsourcing','report_tracking'].includes(view) ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><BriefcaseIcon className="w-5 h-5" /> <span className="font-medium">工作排程</span></button>}
           {isViewAllowed('report') && <button onClick={() => { setSelectedProject(null); setView('report'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'report' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">工作回報</span></button>}
-          
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">行政管理</div>
           {isViewAllowed('purchasing_hub') && <button onClick={() => { setSelectedProject(null); setView('purchasing_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('purchasing') || view === 'stock_alert' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><BoxIcon className="w-5 h-5" /> <span className="font-medium">採購管理</span></button>}
           {isViewAllowed('hr') && <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><UsersIcon className="w-5 h-5" /> <span className="font-medium">人事管理</span></button>}
           {isViewAllowed('production') && <button onClick={() => { setSelectedProject(null); setView('production'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'production' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><PenToolIcon className="w-5 h-5" /> <span className="font-medium">生產／備料</span></button>}
           {isViewAllowed('equipment') && <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' || view.startsWith('equipment_') ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><WrenchIcon className="w-5 h-5" /> <span className="font-medium">設備／工具</span></button>}
-          
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">系統輔助</div>
-          {isViewAllowed('update_log') && <button onClick={() => { setView('update_log'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'update_log' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><HistoryIcon className="w-4 h-4" /> <span className="font-medium">異動日誌</span></button>}
           {isViewAllowed('users') && <button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統帳號設定</span></button>}
-
           <div className="pt-4 border-t border-slate-800 mt-4 space-y-2">
             <button onClick={() => handleDirectoryAction(false)} disabled={!isBrowserSupported} className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${!isBrowserSupported ? 'opacity-30 border-slate-700 bg-slate-800' : isConnected ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'}`}>
               {isWorkspaceLoading ? <LoaderIcon className="w-5 h-5 animate-spin" /> : isConnected ? <CheckCircleIcon className="w-5 h-5" /> : <AlertIcon className="w-5 h-5" />}
               <div className="flex items-start text-left flex-col"><span className="text-sm font-bold">{isConnected ? '電腦同步已開啟' : '未連結電腦目錄'}</span><span className="text-[10px] opacity-70">{isConnected && lastSyncTime ? `最後: ${lastSyncTime}` : 'db.json 即時備份'}</span></div>
             </button>
-            <button onClick={() => window.open("https://www.myqnapcloud.com/smartshare/718f171i34qr44su2301w465_01ee54950081233tq6u01ww8c822fgj0", "_blank")} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-sky-600/10 border border-sky-500/30 text-sky-400 hover:bg-sky-600 hover:text-white group"><ExternalLinkIcon className="w-5 h-5" /><div className="flex items-start text-left flex-col"><span className="text-sm font-bold">開啟網路資料夾</span><span className="text-[10px] opacity-70">QNAP 共享空間</span></div></button>
             <div className="px-1 pt-1 border-t border-slate-800 mt-2 space-y-2">
               <input type="file" accept=".json" ref={dbJsonInputRef} className="hidden" onChange={handleImportDbJson} />
               <button onClick={() => dbJsonInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-orange-600/10 border border-orange-500/30 text-orange-400 hover:bg-orange-600 hover:text-white group"><UploadIcon className="w-5 h-5" /><div className="flex items-start text-left flex-col"><span className="text-sm font-bold">匯入 db.json</span><span className="text-[10px] opacity-70">還原系統備份</span></div></button>
@@ -376,7 +362,7 @@ const App: React.FC = () => {
       <div className={`fixed inset-0 z-[100] md:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}><div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} /><aside className={`absolute left-0 top-0 bottom-0 w-64 bg-slate-900 text-white flex flex-col transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>{renderSidebarContent()}</aside></div>
       <aside className="hidden md:flex w-64 flex-col bg-slate-900 text-white flex-shrink-0">{renderSidebarContent()}</aside>
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shadow-sm z-20 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-slate-500 p-2"><MenuIcon className="w-6 h-6" /></button><div className="text-sm font-bold text-slate-700">{selectedProject ? selectedProject.name : '合家興工程日誌'}</div><div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shadow-sm"><img src={LOGO_URL} alt="User" className="w-full h-full object-cover" /></div></header>
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shadow-sm z-20 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-slate-500 p-2"><MenuIcon className="w-6 h-6" /></button><div className="text-sm font-bold text-slate-700">{selectedProject ? selectedProject.name : '合家興管理系統'}</div><div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shadow-sm"><img src={LOGO_URL} alt="User" className="w-full h-full object-cover" /></div></header>
         <main className="flex-1 min-h-0 bg-[#f8fafc] pb-safe flex flex-col overflow-hidden">
           {view === 'update_log' ? (<AuditLogList logs={auditLogs} />) : 
            view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={(nl) => handleUpdateList(allUsers, nl, setAllUsers, '系統帳號')} auditLogs={auditLogs} onLogAction={(action, details) => updateLastAction('系統', details)} projects={projects} onRestoreData={restoreDataToState} systemRules={systemRules} onUpdateSystemRules={setSystemRules} />) : 
@@ -412,6 +398,34 @@ const App: React.FC = () => {
            view === 'engineering' ? (<EngineeringView projects={projects} setProjects={setProjects} currentUser={currentUser} lastUpdateInfo={lastUpdateInfo} updateLastAction={updateLastAction} systemRules={systemRules} employees={employees} setAttendance={handleUpdateAttendance} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onEditProject={setEditingProject} handleDeleteProject={handleDeleteProject} onAddToSchedule={handleAddToSchedule} onOpenDrivingTime={() => setView('driving_time')} onTranslateAllProjects={handleTranslateAllProjects} globalTeamConfigs={globalTeamConfigs} />) : null}
         </main>
       </div>
+      
+      {/* 全域翻譯進度顯示 (覆蓋層) */}
+      {translationStatus && translationStatus.active && (
+        <div className="fixed inset-0 z-[300] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-[40px] shadow-2xl w-full max-w-sm flex flex-col items-center gap-6 animate-scale-in">
+                <div className="relative">
+                   <LanguagesIcon className="w-16 h-16 text-indigo-600 animate-pulse" />
+                   <div className="absolute -top-2 -right-2 bg-indigo-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-lg">
+                      {Math.round((translationStatus.current / translationStatus.total) * 100)}%
+                   </div>
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="font-black text-slate-800 text-lg">AI 正在自動翻譯全案場...</p>
+                  <p className="text-sm font-bold text-indigo-600 truncate max-w-[200px]">當前案場: {translationStatus.name}</p>
+                  <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mt-4">
+                     <div 
+                       className="bg-indigo-600 h-full transition-all duration-300" 
+                       style={{ width: `${(translationStatus.current / translationStatus.total) * 100}%` }}
+                     />
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">
+                    Processing {translationStatus.current} of {translationStatus.total}
+                  </p>
+                </div>
+            </div>
+        </div>
+      )}
+
       {syncPending && <SyncDecisionCenter diffs={syncPending.diffs} onConfirm={handleSyncConfirm} onCancel={() => { restoreDataToState(mergeAppState(syncPending.fileData || {}, syncPending.cacheData || {})); setSyncPending(null); }} />}
       {isAddModalOpen && <AddProjectModal onClose={() => setIsAddModalOpen(false)} onAdd={(p) => { setProjects(sortProjects([{ ...p, lastModifiedAt: Date.now(), lastModifiedBy: currentUser?.name }, ...projects])); updateLastAction(p.name, `[${p.name}] 新增了案件`); setIsAddModalOpen(false); }} defaultType={ProjectType.CONSTRUCTION} />}
       {editingProject && <EditProjectModal project={editingProject} onClose={() => setEditingProject(null)} onSave={handleUpdateProject} />}
