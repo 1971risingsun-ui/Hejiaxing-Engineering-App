@@ -269,42 +269,49 @@ const App: React.FC = () => {
   };
 
   /**
-   * 優化後的全域翻譯：加入進度覆蓋層，解決手機端連線延遲感。
+   * 優化後的全域翻譯：解決手機端連線延遲感，並增加錯誤偵測。
    */
   const handleTranslateAllProjects = async () => {
-    const total = projects.length;
-    setTranslationStatus({ active: true, current: 0, total, name: '啟動中...' });
+    const targetProjects = projects.filter(p => p.description || p.remarks);
+    const total = targetProjects.length;
+    if (total === 0) {
+      alert("目前沒有包含內容的案件可供翻譯。");
+      return;
+    }
+
+    setTranslationStatus({ active: true, current: 0, total, name: '準備中...' });
 
     const newProjects = [...projects];
     let successCount = 0;
     
     for (let i = 0; i < total; i++) {
-        const p = newProjects[i];
+        const p = targetProjects[i];
         setTranslationStatus({ active: true, current: i + 1, total, name: p.name });
 
-        if (p.description || p.remarks) {
-            try {
-                const translatedDesc = p.description ? await translateProjectContent(p.description) : '';
-                const translatedRemarks = p.remarks ? await translateProjectContent(p.remarks) : '';
-                
-                newProjects[i] = { 
-                  ...p, 
-                  description: translatedDesc || p.description, 
-                  remarks: translatedRemarks || p.remarks,
-                  lastModifiedAt: Date.now(),
-                  lastModifiedBy: 'AI 全域翻譯'
-                };
-                successCount++;
-            } catch (err) {
-                console.warn(`翻譯案場 ${p.name} 失敗，跳過。`);
+        try {
+            const translatedDesc = p.description ? await translateProjectContent(p.description) : '';
+            const translatedRemarks = p.remarks ? await translateProjectContent(p.remarks) : '';
+            
+            const originalIdx = newProjects.findIndex(np => np.id === p.id);
+            if (originalIdx > -1) {
+              newProjects[originalIdx] = { 
+                ...newProjects[originalIdx], 
+                description: translatedDesc || p.description, 
+                remarks: translatedRemarks || p.remarks,
+                lastModifiedAt: Date.now(),
+                lastModifiedBy: 'AI 全域翻譯'
+              };
+              successCount++;
             }
+        } catch (err) {
+            console.error(`案場 ${p.name} 翻譯失敗:`, err);
         }
     }
     
     setProjects(sortProjects(newProjects));
-    updateLastAction('全域翻譯', `使用 AI 將 ${successCount} 件案件翻譯為中越對照`);
+    updateLastAction('全域翻譯', `完成 ${successCount} 件案件之中越雙語對照`);
     setTranslationStatus(null);
-    alert(`完成！共翻譯了 ${successCount} 筆案件。`);
+    alert(`翻譯完畢！成功處理 ${successCount} 筆案件。`);
   };
 
   const isViewAllowed = (viewId: string) => {
@@ -313,7 +320,8 @@ const App: React.FC = () => {
     return !!systemRules.rolePermissions?.[currentUser.role]?.allowedViews?.includes(viewId);
   };
 
-  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
+  // Fix: Pass allUsers to LoginScreen to resolve TS2741 error
+  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} users={allUsers} />;
 
   const renderSidebarContent = () => {
     const isConnected = dirHandle && dirPermission === 'granted';
