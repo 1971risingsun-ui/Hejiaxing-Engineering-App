@@ -13,7 +13,7 @@ interface EngineeringViewProps {
   projects: Project[]; 
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>; 
   currentUser: User; 
-  lastUpdateInfo: { name: string; time: string } | null; 
+  lastUpdateInfo: { name: string; time: string; user?: string } | null; 
   updateLastAction: (name: string, details?: string) => void; 
   systemRules: SystemRules; 
   employees: Employee[]; 
@@ -24,13 +24,14 @@ interface EngineeringViewProps {
   handleDeleteProject: (id: string) => void; 
   onAddToSchedule: (date: string, teamId: number, taskName: string) => boolean; 
   onOpenDrivingTime?: () => void;
+  onTranslateAllProjects: () => Promise<void>; // 新增此行以修正 TS 錯誤
   globalTeamConfigs: GlobalTeamConfigs;
 }
 
 const EngineeringView: React.FC<EngineeringViewProps> = ({ 
   projects, setProjects, currentUser, lastUpdateInfo, updateLastAction, systemRules, 
   employees, setAttendance, onSelectProject, onAddProject, onEditProject, 
-  handleDeleteProject, onAddToSchedule, onOpenDrivingTime, globalTeamConfigs 
+  handleDeleteProject, onAddToSchedule, onOpenDrivingTime, onTranslateAllProjects, globalTeamConfigs 
 }) => {
   const excelInputRef = useRef<HTMLInputElement>(null);
   const recordInputRef = useRef<HTMLInputElement>(null); // Excel 施工紀錄

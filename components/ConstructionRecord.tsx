@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Project, ConstructionItem, User, UserRole, ConstructionSignature, DailyReport, SitePhoto, ProjectType } from '../types';
+import { Project, ConstructionItem, User, UserRole, ConstructionSignature, DailyReport, SitePhoto, ProjectType, SystemRules } from '../types';
 import { DownloadIcon, PlusIcon, ClipboardListIcon, ArrowLeftIcon, ChevronRightIcon, TrashIcon, CheckCircleIcon as SubmitIcon, PenToolIcon, XIcon, StampIcon, XCircleIcon, SunIcon, CloudIcon, RainIcon, CameraIcon, LoaderIcon, FileTextIcon, BoxIcon, ImageIcon, EditIcon } from './Icons';
 import { downloadBlob, processFile } from '../utils/fileHelpers';
 import JSZip from 'jszip';
@@ -13,33 +13,32 @@ interface ConstructionRecordProps {
   project: Project;
   currentUser: User;
   onUpdateProject: (updatedProject: Project) => void;
+  systemRules: SystemRules;
   forceEntryMode?: boolean; 
   initialDate?: string; 
 }
 
 const STANDARD_CONSTRUCTION_ITEMS = [
-  { name: '立柱', unit: '支' },
-  { name: '澆置', unit: '洞' },
-  { name: '(雙模)前模', unit: '米' },
-  { name: '(雙模)後模', unit: '米' },
-  { name: '(雙模)螺桿', unit: '米' },
-  { name: '(雙模)澆置', unit: '米' },
-  { name: '(雙模)拆模', unit: '米' },
-  { name: '(雙模)清潔', unit: '' },
-  { name: '(雙模)收模', unit: '米' },
-  { name: '三橫骨架', unit: '米' },
-  { name: '封板', unit: '米' },
-  { name: '(單模)組模', unit: '米' },
-  { name: '(單模)澆置', unit: '米' },
-  { name: '(單模)拆模', unit: '米' },
-  { name: '(單模)清潔', unit: '' },
-  { name: '(單模)收模', unit: '米' },
-  { name: '安走骨架', unit: '米' },
-  { name: '安走三橫', unit: '米' },
-  { name: '安走封板', unit: '米' },
-  { name: '隔音帆布骨架', unit: '米' },
-  { name: '隔音帆布', unit: '米' },
-  { name: '大門門片安裝', unit: '樘' },
+  { name: '立柱 (Trụ/Cột)', unit: '支/cây' },
+  { name: '澆置 (Đổ bê tông)', unit: '洞/hố' },
+  { name: '(雙模)前模 (Cốp pha trước)', unit: '米/mét' },
+  { name: '(雙模)後模 (Cốp pha sau)', unit: '米/mét' },
+  { name: '(雙模)螺桿 (Ty ren)', unit: '米/mét' },
+  { name: '(雙模)澆置 (Đổ bê tông)', unit: '米/mét' },
+  { name: '(雙模)拆模 (Tháo dỡ khuôn)', unit: '米/mét' },
+  { name: '清潔 (Vệ sinh)', unit: '' },
+  { name: '收模 (Thu dọn khuôn)', unit: '米/mét' },
+  { name: '三橫骨架 (Khung xương 3 ngang)', unit: '米/mét' },
+  { name: '封板 (Lắp tấm che)', unit: '米/mét' },
+  { name: '(單模)組模 (Lắp dựng khuôn)', unit: '米/mét' },
+  { name: '(單模)澆置 (Đổ bê tông)', unit: '米/mét' },
+  { name: '(單模)拆模 (Tháo dỡ khuôn)', unit: '米/mét' },
+  { name: '安走骨架 (Khung hành lang)', unit: '米/mét' },
+  { name: '安走三橫 (3 ngang hành lang)', unit: '米/mét' },
+  { name: '安走封板 (Tấm che hành lang)', unit: '米/mét' },
+  { name: '隔音帆布骨架 (Khung bạt cách âm)', unit: '米/mét' },
+  { name: '隔音帆布 (Bạt cách âm)', unit: '米/mét' },
+  { name: '大門門片安裝 (Lắp cánh cổng)', unit: '樘/bộ' },
 ];
 
 const MAINTENANCE_CONSTRUCTION_ITEMS = [
@@ -67,7 +66,7 @@ const MAINTENANCE_CONSTRUCTION_ITEMS = [
   { name: '一般圍籬立柱 (Trụ hàng rào)', unit: '支/cây' },
   { name: '斜撐 (Chống chéo)', unit: '支/cây' },
   { name: '防颱型立柱 (Cột chống bão)', unit: '支/cây' },
-  { name: '6米角鋼 (Thép góc)', unit: '支/cây' },
+  { name: '6米角鋼 (Thép舉)', unit: '支/cây' },
   { name: '長斜撐 (Dầm chéo dài)', unit: '支/cây' },
   { name: '一般鋼板 (Tấm thép thường)', unit: '片/tấm' },
   { name: '烤漆鋼板 (Thép tấm sơn tĩnh điện)', unit: '片/tấm' },
@@ -84,9 +83,9 @@ const RESOURCE_ITEMS = [
     { name: '怪手 (Máy đào)', unit: '式/chuyến' }
 ];
 
-const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, currentUser, onUpdateProject, forceEntryMode = false, initialDate }) => {
+const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, currentUser, onUpdateProject, systemRules, forceEntryMode = false, initialDate }) => {
   const isMaintenance = project.type === ProjectType.MAINTENANCE;
-  const mainTitle = isMaintenance ? '施工報告' : '施工紀錄';
+  const mainTitle = isMaintenance ? '施工報告 (Báo cáo)' : '施工紀錄 (Nhật ký)';
 
   const [constructionMode, setConstructionMode] = useState<'overview' | 'entry'>(
     forceEntryMode ? 'entry' : (isMaintenance ? 'entry' : 'overview')
@@ -116,7 +115,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
 
-  const canEdit = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER;
+  const canEdit = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.ENGINEERING || currentUser.role === UserRole.WORKER;
   const currentStandardItems = isMaintenance ? MAINTENANCE_CONSTRUCTION_ITEMS : STANDARD_CONSTRUCTION_ITEMS;
 
   useEffect(() => {
@@ -390,8 +389,8 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
 
     const container = document.createElement('div');
     container.style.position = 'fixed'; container.style.top = '-9999px'; container.style.left = '-9999px'; container.style.width = '800px'; container.style.backgroundColor = '#ffffff'; document.body.appendChild(container);
-    const weatherText = report ? (report.weather === 'sunny' ? '晴天' : report.weather === 'cloudy' ? '陰天' : report.weather === 'rainy' ? '雨天' : '未紀錄') : '未紀錄';
-    container.innerHTML = `<div style="font-family: 'Microsoft JhengHei', sans-serif; padding: 40px; color: #333; background: white;"><h1 style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; font-size: 28px; font-weight: bold; margin-bottom: 25px;">${mainTitle}</h1><div style="display: flex; justify-content: space-between; margin-bottom: 25px; font-size: 16px;"><div><span style="font-weight: bold;">專案：</span>${project.name}</div><div><span style="font-weight: bold;">日期：</span>${date}</div></div><div style="border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 30px; background-color: #f8f9fa;"><div style="margin-bottom: 8px;"><strong style="color: #4b5563;">人員：</strong> 師傅: ${items[0]?.worker || '無'} / 助手: ${items[0]?.assistant || '無'}</div><div><strong style="color: #4b5563;">天氣：</strong> ${weatherText}</div></div><div style="font-size: 18px; font-weight: bold; margin-bottom: 15px; border-left: 5px solid #3b82f6; padding-left: 12px; color: #1f2937;">施工項目</div><table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 15px;"><thead><tr style="background-color: #f3f4f6;"><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">#</th><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">項目</th><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">數量</th><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">單位</th><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">${isMaintenance ? '作業' : '位置'}</th></tr></thead><tbody>${items.length > 0 ? items.map((item, idx) => `<tr><td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">${idx + 1}</td><td style="border: 1px solid #e5e7eb; padding: 10px;">${item.name}</td><td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">${item.quantity}</td><td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">${item.unit}</td><td style="border: 1px solid #e5e7eb; padding: 10px;">${item.location || ''}</td></tr>`).join('') : '<tr><td colspan="5" style="border: 1px solid #e5e7eb; padding: 20px; text-align: center;">無施工項目</td></tr>'}</tbody></table><div style="font-size: 18px; font-weight: bold; margin-bottom: 15px; border-left: 5px solid #3b82f6; padding-left: 12px; color: #1f2937;">施工內容與備註</div><div style="white-space: pre-wrap; margin-bottom: 30px; border: 1px solid #e5e7eb; padding: 15px; min-height: 100px; border-radius: 4px;">${report ? report.content : '無內容'}</div><div style="font-size: 18px; font-weight: bold; margin-bottom: 15px; border-left: 5px solid #3b82f6; padding-left: 12px; color: #1f2937;">現場照片</div><div style="grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; display: grid;">${report?.photos?.length ? report.photos.map(pid => { const photo = project.photos.find(p => p.id === pid); return photo ? `<div style="border: 1px solid #e5e7eb; padding: 8px; background: #fff;"><img src="${photo.url}" style="width: 100%; height: auto; display: block;" /></div>` : ''; }).join('') : '<div style="grid-column: span 2; padding: 20px; text-align: center;">無照片</div>'}</div>${signature ? `<div style="margin-top: 50px; display: flex; flex-direction: column; align-items: flex-end;"><div style="font-size: 16px; font-weight: bold; margin-bottom: 10px;">現場人員簽名：</div><div style="border-bottom: 2px solid #333;"><img src="${signature.url}" style="width: 350px; height: auto;" /></div></div>` : ''}</div>`;
+    const weatherText = report ? (report.weather === 'sunny' ? '晴天 (Trời nắng)' : report.weather === 'cloudy' ? '陰天 (Mây mù)' : report.weather === 'rainy' ? '雨天 (Mưa)' : '未紀錄') : '未紀錄';
+    container.innerHTML = `<div style="font-family: 'Microsoft JhengHei', sans-serif; padding: 40px; color: #333; background: white;"><h1 style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; font-size: 28px; font-weight: bold; margin-bottom: 25px;">${mainTitle}</h1><div style="display: flex; justify-content: space-between; margin-bottom: 25px; font-size: 16px;"><div><span style="font-weight: bold;">專案 (Dự án)：</span>${project.name}</div><div><span style="font-weight: bold;">日期 (Ngày)：</span>${date}</div></div><div style="border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 30px; background-color: #f8f9fa;"><div style="margin-bottom: 8px;"><strong style="color: #4b5563;">人員 (Nhân sự)：</strong> 師傅: ${items[0]?.worker || '無'} / 助手: ${items[0]?.assistant || '無'}</div><div><strong style="color: #4b5563;">天氣 (Thời tiết)：</strong> ${weatherText}</div></div><div style="font-size: 18px; font-weight: bold; margin-bottom: 15px; border-left: 5px solid #3b82f6; padding-left: 12px; color: #1f2937;">施工項目 (Hạng mục thi công)</div><table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 15px;"><thead><tr style="background-color: #f3f4f6;"><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">#</th><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">項目 (Tên)</th><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">數量 (SL)</th><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">單位 (ĐV)</th><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">${isMaintenance ? '作業 (Lệnh)' : '位置 (Vị trí)'}</th></tr></thead><tbody>${items.length > 0 ? items.map((item, idx) => `<tr><td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">${idx + 1}</td><td style="border: 1px solid #e5e7eb; padding: 10px;">${item.name}</td><td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">${item.quantity}</td><td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">${item.unit}</td><td style="border: 1px solid #e5e7eb; padding: 10px;">${item.location || ''}</td></tr>`).join('') : '<tr><td colspan="5" style="border: 1px solid #e5e7eb; padding: 20px; text-align: center;">無施工項目</td></tr>'}</tbody></table><div style="font-size: 18px; font-weight: bold; margin-bottom: 15px; border-left: 5px solid #3b82f6; padding-left: 12px; color: #1f2937;">施工內容與備註 (Ghi chú)</div><div style="white-space: pre-wrap; margin-bottom: 30px; border: 1px solid #e5e7eb; padding: 15px; min-height: 100px; border-radius: 4px;">${report ? report.content : '無內容'}</div><div style="font-size: 18px; font-weight: bold; margin-bottom: 15px; border-left: 5px solid #3b82f6; padding-left: 12px; color: #1f2937;">現場照片 (Ảnh hiện trường)</div><div style="grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; display: grid;">${report?.photos?.length ? report.photos.map(pid => { const photo = project.photos.find(p => p.id === pid); return photo ? `<div style="border: 1px solid #e5e7eb; padding: 8px; background: #fff;"><img src="${photo.url}" style="width: 100%; height: auto; display: block;" /></div>` : ''; }).join('') : '<div style="grid-column: span 2; padding: 20px; text-align: center;">無照片</div>'}</div>${signature ? `<div style="margin-top: 50px; display: flex; flex-direction: column; align-items: flex-end;"><div style="font-size: 16px; font-weight: bold; margin-bottom: 10px;">現場人員簽名 (Ký tên)：</div><div style="border-bottom: 2px solid #333;"><img src="${signature.url}" style="width: 350px; height: auto;" /></div></div>` : ''}</div>`;
     await new Promise(resolve => setTimeout(resolve, 500));
     try {
         const canvas = await html2canvas(container, { scale: 2, useCORS: true });
@@ -450,22 +449,26 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         const infoFill: any = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
         
         // Row 2: 日期 (精準對應匯入規則 B2)
-        worksheet.getCell('A2').value = '日期';
+        worksheet.getCell('A2').value = '日期 (Ngày)';
         worksheet.getCell('A2').font = headerFont;
         worksheet.getCell('B2').value = date;
         worksheet.getCell('B2').font = contentFont;
         worksheet.mergeCells('B2:E2');
         
         // Row 3: 人員 (精準對應匯入規則 B3)
-        worksheet.getCell('A3').value = '人員';
+        worksheet.getCell('A3').value = '人員 (Nhân sự)';
         worksheet.getCell('A3').font = headerFont;
         worksheet.getCell('B3').value = `師傅: ${items[0]?.worker || '無'} / 助手: ${items[0]?.assistant || '無'}`;
         worksheet.getCell('B3').font = contentFont;
         worksheet.mergeCells('B3:E3');
 
         // Row 4: 天氣 (精準對應匯入規則 B4)
-        const weatherText = report ? (report.weather === 'sunny' ? '晴天' : report.weather === 'cloudy' ? '陰天' : report.weather === 'rainy' ? '雨天' : '未紀錄') : '未紀錄';
-        worksheet.getCell('A4').value = '天氣';
+        // Fix TS1005 & TS1134: Nested ternary condition was malformed in previous version.
+        const weatherText = report 
+          ? (report.weather === 'sunny' ? '晴天' : (report.weather === 'cloudy' ? '陰天' : (report.weather === 'rainy' ? '雨天' : '未紀錄'))) 
+          : '未紀錄';
+
+        worksheet.getCell('A4').value = '天氣 (T.tiết)';
         worksheet.getCell('A4').font = headerFont;
         worksheet.getCell('B4').value = weatherText;
         worksheet.getCell('B4').font = contentFont;
@@ -485,7 +488,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         // 3. 施工項目 章節標頭 (Row 5)
         worksheet.getRow(5).height = 30;
         const section1Cell = worksheet.getCell('B5');
-        section1Cell.value = '施工項目';
+        section1Cell.value = '施工項目 (Hạng mục)';
         section1Cell.font = { ...headerFont, size: 14, color: { argb: 'FF1E293B' } };
         section1Cell.alignment = leftStyle;
         // 左側藍色側條
@@ -495,7 +498,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         // 4. 表格表頭 (Row 6)
         const tableHeaderRow = worksheet.getRow(6);
         tableHeaderRow.height = 25;
-        const headers = ['#', '項目', '數量', '單位', isMaintenance ? '作業' : '位置'];
+        const headers = ['#', '項目 (Tên)', '數量 (SL)', '單位 (ĐV)', isMaintenance ? '作業 (Lệnh)' : '位置 (Vị trí)'];
         headers.forEach((h, i) => {
             const cell = tableHeaderRow.getCell(i + 1);
             cell.value = h;
@@ -529,7 +532,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         currentRow += 1;
         worksheet.getRow(currentRow).height = 30;
         const section2Cell = worksheet.getCell(`B${currentRow}`);
-        section2Cell.value = '施工內容與備註';
+        section2Cell.value = '施工內容與備註 (Ghi chú)';
         section2Cell.font = { ...headerFont, size: 14, color: { argb: 'FF1E293B' } };
         section2Cell.alignment = leftStyle;
         const accent2 = worksheet.getCell(`A${currentRow}`);
@@ -556,7 +559,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         currentRow += 1;
         worksheet.getRow(currentRow).height = 30;
         const section3Cell = worksheet.getCell(`B${currentRow}`);
-        section3Cell.value = '現場照片';
+        section3Cell.value = '現場照片 (Ảnh HT)';
         section3Cell.font = { ...headerFont, size: 14, color: { argb: 'FF1E293B' } };
         section3Cell.alignment = leftStyle;
         const accent3 = worksheet.getCell(`A${currentRow}`);
@@ -574,7 +577,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
                 
                 const sigLabelRow = currentRow + 2;
                 const sigLabelCell = worksheet.getCell(`D${sigLabelRow}`);
-                sigLabelCell.value = '現場人員簽名：';
+                sigLabelCell.value = '現場人員簽名 (Ký tên)：';
                 sigLabelCell.font = headerFont;
                 sigLabelCell.alignment = { vertical: 'middle', horizontal: 'right' };
                 
@@ -587,7 +590,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         } else {
             // 無照片提示
             const noPhotoCell = worksheet.getCell(`A${currentRow}`);
-            noPhotoCell.value = '無照片';
+            noPhotoCell.value = '無照片 (Không có ảnh)';
             noPhotoCell.font = { ...contentFont, italic: true, color: { argb: 'FF94A3B8' } };
             noPhotoCell.alignment = centerStyle;
             worksheet.mergeCells(`A${currentRow}:E${currentRow + 2}`);
@@ -655,19 +658,19 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
 
             // --- 產生表頭 (位置、師傅、日期) ---
             const rowLocation = worksheet.getRow(1);
-            rowLocation.getCell(3).value = '位置';
+            rowLocation.getCell(3).value = '位置 (Vị trí)';
             sortedSessionKeys.forEach((key, idx) => {
                 rowLocation.getCell(4 + idx).value = sessionsMap[key].location;
             });
 
             const rowWorker = worksheet.getRow(2);
-            rowWorker.getCell(3).value = '師傅';
+            rowWorker.getCell(3).value = '師傅 (Thợ)';
             sortedSessionKeys.forEach((key, idx) => {
                 rowWorker.getCell(4 + idx).value = sessionsMap[key].worker;
             });
 
             const rowDate = worksheet.getRow(3);
-            rowDate.getCell(3).value = '日期';
+            rowDate.getCell(3).value = '日期 (Ngày)';
             sortedSessionKeys.forEach((key, idx) => {
                 rowDate.getCell(4 + idx).value = sessionsMap[key].date;
             });
@@ -676,7 +679,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
             worksheet.mergeCells('A1:A3');
             worksheet.getCell('A1').value = '項次';
             worksheet.mergeCells('B1:B3');
-            worksheet.getCell('B1').value = '工程項目';
+            worksheet.getCell('B1').value = '工程項目 (Hạng mục)';
 
             // 標題樣式套用
             ['A1', 'B1', 'C1', 'C2', 'C3'].forEach(addr => {
@@ -717,7 +720,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
             let currentOtherRow = 4 + STANDARD_CONSTRUCTION_ITEMS.length;
             if (otherNames.length > 0) {
                 const otherLabelRow = worksheet.getRow(currentOtherRow);
-                otherLabelRow.getCell(1).value = '其他';
+                otherLabelRow.getCell(1).value = '其他 (Khác)';
                 worksheet.mergeCells(`A${currentOtherRow}:C${currentOtherRow}`);
                 otherLabelRow.getCell(1).font = { bold: true };
                 otherLabelRow.getCell(1).fill = headerFill as any;
@@ -768,7 +771,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
     return (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden min-h-[500px]">
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-          <div><h3 className="font-bold text-lg text-slate-800">{mainTitle}總覽</h3><p className="text-sm text-slate-500">檢視所有已提交的{mainTitle}</p></div>
+          <div><h3 className="font-bold text-lg text-slate-800">{mainTitle}總覽 (Tổng quan)</h3><p className="text-sm text-slate-500">檢視所有已提交的紀錄 (Xem nhật ký)</p></div>
           <div className="flex gap-2">
             <button 
                 onClick={handleExportPartitionTable}
@@ -782,15 +785,15 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold"><tr><th className="px-6 py-4">日期</th><th className="px-6 py-4">師傅</th><th className="px-6 py-4 text-center">簽證</th><th className="px-6 py-4 text-right">操作</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{sortedDates.length > 0 ? sortedDates.map((item) => (
+            <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold"><tr><th className="px-6 py-4">日期 (Ngày)</th><th className="px-6 py-4">師傅 (Thợ chính)</th><th className="px-6 py-4 text-center">簽證 (Ký)</th><th className="px-6 py-4 text-right">操作 (Lệnh)</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">{sortedDates.length > 0 ? sortedDates.map((item: any) => (
               <tr key={item.date} onClick={() => { setConstructionDate(item.date); setIsEditing(false); setConstructionMode('entry'); }} className="hover:bg-slate-50 transition-colors cursor-pointer group">
                 <td className="px-6 py-4 font-medium text-slate-800">{item.date}</td>
                 <td className="px-6 py-4 text-slate-600">{item.worker || '-'}</td>
                 <td className="px-6 py-4 text-center">{(project.constructionSignatures || []).some(s => s.date === item.date) ? <StampIcon className="w-5 h-5 text-green-600 mx-auto" /> : <XCircleIcon className="w-5 h-5 text-slate-300 mx-auto" />}</td>
                 <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2"><button onClick={(e) => { e.stopPropagation(); generateReportExcel(item.date); }} className="p-1.5 text-slate-400 hover:text-emerald-600 rounded" title="匯出 Excel"><DownloadIcon className="w-4 h-4" /></button><button onClick={(e) => { e.stopPropagation(); generateReportPDF(item.date); }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="匯出 PDF"><FileTextIcon className="w-4 h-4" /></button></div></td>
               </tr>
-            )) : <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400">尚無紀錄</td></tr>}</tbody>
+            )) : <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400">尚無紀錄 (Không có dữ liệu)</td></tr>}</tbody>
           </table>
         </div>
       </div>
@@ -807,7 +810,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
           <div className="flex flex-row justify-between items-center gap-4 mb-4">
               <div className="flex items-center gap-2">
                  {!isMaintenance && <button onClick={() => setConstructionMode('overview')} className="text-slate-400 hover:text-slate-600 p-2 -ml-2"><ArrowLeftIcon className="w-5 h-5" /></button>}
-                 <h3 className="font-bold text-lg text-slate-800">{isMaintenance ? '施工報告 (Báo cáo thi công)' : '編輯紀錄'}</h3>
+                 <h3 className="font-bold text-lg text-slate-800">{isMaintenance ? '施工報告 (Báo cáo thi công)' : '編輯紀錄 (Sửa nhật ký)'}</h3>
               </div>
             <div className="flex items-center gap-1">
                 <button onClick={() => generateReportExcel(constructionDate)} disabled={isGeneratingExcel} className="p-2 text-slate-500 hover:text-emerald-600 rounded-full" title="匯出 Excel">{isGeneratingExcel ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <DownloadIcon className="w-5 h-5" />}</button>
@@ -817,88 +820,88 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
           </div>
           <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
             <label className="block text-xs font-semibold text-slate-500 mb-1">日期 (Ngày)</label>
-            <input type="date" value={constructionDate} disabled={!isEditing || !canEdit} onChange={(e) => setConstructionDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white" />
+            <input type="date" value={constructionDate} disabled={!isEditing || !canEdit} onChange={(e) => setConstructionDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white font-bold" />
           </div>
         </div>
 
         <div className="overflow-x-auto pb-4">
           <table className="w-full text-left border-collapse text-sm">
-            <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold"><tr><th className="px-4 py-3 w-12 text-center">#</th><th className="px-4 py-3 min-w-[120px]">工程項目</th><th className="px-4 py-3 w-20 text-center">數量</th><th className="px-4 py-3 w-16 text-center">單位</th><th className="px-4 py-3 min-w-[100px]">{isMaintenance ? '作業' : '位置'}</th>{canEdit && isEditing && <th className="px-4 py-3 w-12 text-center">刪</th>}</tr></thead>
+            <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-wider"><tr><th className="px-4 py-3 w-12 text-center">#</th><th className="px-4 py-3 min-w-[120px]">工程項目 (Hạng mục)</th><th className="px-4 py-3 w-20 text-center">數量 (SL)</th><th className="px-4 py-3 w-16 text-center">單位 (ĐV)</th><th className="px-4 py-3 min-w-[100px]">{isMaintenance ? '作業 (Lệnh)' : '位置 (Vị trí)'}</th>{canEdit && isEditing && <th className="px-4 py-3 w-12 text-center">刪 (Xóa)</th>}</tr></thead>
             <tbody className="divide-y divide-slate-100">
               {visibleItems.length > 0 ? visibleItems.map((item, index) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 text-center text-slate-400">{index + 1}</td>
-                  <td className="px-4 py-3">{canEdit && isEditing ? <select className="w-full bg-transparent border-b border-transparent focus:border-blue-500 py-1 outline-none" value={item.name} onChange={(e) => updateConstructionItem(item.id, 'name', e.target.value)}>{currentStandardItems.map(opt => <option key={opt.name} value={opt.name}>{opt.name}</option>)}</select> : <span className="font-medium text-slate-800">{item.name}</span>}</td>
-                  <td className="px-4 py-3">{canEdit && isEditing ? <input type="text" className="w-full bg-transparent border-b border-transparent focus:border-blue-500 py-1 text-center outline-none" value={item.quantity} onChange={(e) => updateConstructionItem(item.id, 'quantity', e.target.value)} /> : <span className="text-slate-700 block text-center">{item.quantity}</span>}</td>
+                  <td className="px-4 py-3">{canEdit && isEditing ? <select className="w-full bg-transparent border-b border-transparent focus:border-blue-500 py-1 outline-none font-bold" value={item.name} onChange={(e) => updateConstructionItem(item.id, 'name', e.target.value)}>{currentStandardItems.map(opt => <option key={opt.name} value={opt.name}>{opt.name}</option>)}</select> : <span className="font-bold text-slate-800">{item.name}</span>}</td>
+                  <td className="px-4 py-3">{canEdit && isEditing ? <input type="text" className="w-full bg-transparent border-b border-transparent focus:border-blue-500 py-1 text-center outline-none font-black text-indigo-600" value={item.quantity} onChange={(e) => updateConstructionItem(item.id, 'quantity', e.target.value)} /> : <span className="text-slate-700 block text-center font-black">{item.quantity}</span>}</td>
                   <td className="px-4 py-3 text-slate-500 text-center">{item.unit}</td>
-                  <td className="px-4 py-3">{isMaintenance ? <select className="w-full bg-transparent border-b border-transparent focus:border-blue-500 py-1 outline-none" value={item.location} onChange={(e) => updateConstructionItem(item.id, 'location', e.target.value)} disabled={!canEdit || !isEditing}><option value="裝/Lắp đặt">裝 (Lắp)</option><option value="拆/Phá dỡ">拆 (Dỡ)</option></select> : (canEdit && isEditing ? <input type="text" className="w-full bg-transparent border-b border-transparent focus:border-blue-500 py-1 outline-none" value={item.location} onChange={(e) => updateConstructionItem(item.id, 'location', e.target.value)} /> : <span className="text-slate-700">{item.location || '-'}</span>)}</td>
+                  <td className="px-4 py-3">{isMaintenance ? <select className="w-full bg-transparent border-b border-transparent focus:border-blue-500 py-1 outline-none text-xs" value={item.location} onChange={(e) => updateConstructionItem(item.id, 'location', e.target.value)} disabled={!canEdit || !isEditing}><option value="裝/Lắp đặt">裝 (Lắp)</option><option value="拆/Phá dỡ">拆 (Dỡ)</option></select> : (canEdit && isEditing ? <input type="text" className="w-full bg-transparent border-b border-transparent focus:border-blue-500 py-1 outline-none text-xs" value={item.location} onChange={(e) => updateConstructionItem(item.id, 'location', e.target.value)} /> : <span className="text-slate-700 text-xs">{item.location || '-'}</span>)}</td>
                   {canEdit && isEditing && <td className="px-4 py-3 text-center"><button onClick={() => deleteConstructionItem(item.id)} className="text-slate-300 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button></td>}
                 </tr>
-              )) : <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400">尚無項目</td></tr>}
+              )) : <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic">尚無項目 (Không có hạng mục)</td></tr>}
             </tbody>
           </table>
           
           {canEdit && isEditing && (
             <div className="space-y-4 px-4 mt-6 pb-6">
-                <button onClick={handleAddItem} className="w-full py-3 bg-white border border-dashed border-slate-300 rounded-lg text-blue-600 hover:bg-slate-50 font-medium text-sm flex items-center justify-center gap-2"><PlusIcon className="w-4 h-4" /> 新增標準項目</button>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                    <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">自訂項目</h4>
+                <button onClick={handleAddItem} className="w-full py-3 bg-white border border-dashed border-slate-300 rounded-lg text-blue-600 hover:bg-slate-50 font-black text-xs flex items-center justify-center gap-2 uppercase tracking-widest"><PlusIcon className="w-4 h-4" /> 新增標品 (Thêm Hạng mục chuẩn)</button>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <h4 className="text-[10px] font-black text-slate-400 mb-3 uppercase tracking-widest">自訂項目 (Hạng mục tùy chỉnh)</h4>
                     <div className="grid grid-cols-12 gap-2">
-                       <div className="col-span-12 md:col-span-4"><input type="text" placeholder="名稱" className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none" value={customItem.name} onChange={e => setCustomItem({...customItem, name: e.target.value})} /></div>
-                       <div className="col-span-6 md:col-span-2"><input type="text" placeholder="數量" className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none" value={customItem.quantity} onChange={e => setCustomItem({...customItem, quantity: e.target.value})} /></div>
-                       <div className="col-span-6 md:col-span-2"><input type="text" placeholder="單位" className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none" value={customItem.unit} onChange={e => setCustomItem({...customItem, unit: e.target.value})} /></div>
-                       <div className="col-span-10 md:col-span-3">{isMaintenance ? <select className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none" value={customItem.location} onChange={e => setCustomItem({...customItem, location: e.target.value})}><option value="">作業</option><option value="裝/Lắp đặt">裝 (Lắp)</option><option value="拆/Phá dỡ">拆 (Dỡ)</option></select> : <input type="text" placeholder="位置" className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none" value={customItem.location} onChange={e => setCustomItem({...customItem, location: e.target.value})} />}</div>
-                       <div className="col-span-2 md:col-span-1"><button onClick={handleAddCustomItem} disabled={!customItem.name} className="w-full h-full bg-slate-800 text-white rounded flex items-center justify-center disabled:opacity-50"><PlusIcon className="w-4 h-4" /></button></div>
+                       <div className="col-span-12 md:col-span-4"><input type="text" placeholder="名稱 (Tên)" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500 font-bold" value={customItem.name} onChange={e => setCustomItem({...customItem, name: e.target.value})} /></div>
+                       <div className="col-span-6 md:col-span-2"><input type="text" placeholder="數量 (SL)" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500 text-center font-black text-blue-600" value={customItem.quantity} onChange={e => setCustomItem({...customItem, quantity: e.target.value})} /></div>
+                       <div className="col-span-6 md:col-span-2"><input type="text" placeholder="單位 (ĐV)" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500 text-center" value={customItem.unit} onChange={e => setCustomItem({...customItem, unit: e.target.value})} /></div>
+                       <div className="col-span-10 md:col-span-3">{isMaintenance ? <select className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none" value={customItem.location} onChange={e => setCustomItem({...customItem, location: e.target.value})}><option value="">作業 (Lệnh)</option><option value="裝/Lắp đặt">裝 (Lắp)</option><option value="拆/Phá dỡ">拆 (Dỡ)</option></select> : <input type="text" placeholder="位置 (Vị trí)" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none" value={customItem.location} onChange={e => setCustomItem({...customItem, location: e.target.value})} />}</div>
+                       <div className="col-span-2 md:col-span-1"><button onClick={handleAddCustomItem} disabled={!customItem.name} className="w-full h-full bg-slate-800 text-white rounded-lg flex items-center justify-center shadow-md active:scale-90 transition-transform disabled:opacity-50"><PlusIcon className="w-5 h-5" /></button></div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                    <div><label className="block text-xs font-semibold text-slate-500 mb-1">師傅</label><input type="text" list="employee-nicknames-list" value={dailyWorker} onChange={(e) => handleHeaderWorkerChange(e.target.value)} placeholder="輸入姓名" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                    <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">師傅 (Thợ chính)</label><input type="text" list="employee-nicknames-list" value={dailyWorker} onChange={(e) => handleHeaderWorkerChange(e.target.value)} placeholder="輸入姓名" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" /></div>
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">助手清單</label>
-                        <div className="flex flex-wrap gap-1.5 mb-2">{currentAssistants.map(name => (<span key={name} className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-bold border border-blue-200">{name}<button onClick={() => removeAssistant(name)}><XCircleIcon className="w-3.5 h-3.5" /></button></span>))}</div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">助手清單 (Phụ việc)</label>
+                        <div className="flex flex-wrap gap-1.5 mb-2">{currentAssistants.map(name => (<span key={name} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-blue-100">{name}<button onClick={() => removeAssistant(name)}><XCircleIcon className="w-3.5 h-3.5" /></button></span>))}</div>
                         <div className="flex gap-2">
-                            <input type="text" list="employee-nicknames-list" value={pendingAssistant} onKeyDown={handleAssistantInputKeyDown} onChange={(e) => setPendingAssistant(e.target.value)} placeholder="輸入助手姓名" className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                            <div className="flex items-center gap-1.5 bg-slate-100 px-2 py-2 rounded-lg border border-slate-200">
+                            <input type="text" list="employee-nicknames-list" value={pendingAssistant} onKeyDown={handleAssistantInputKeyDown} onChange={(e) => setPendingAssistant(e.target.value)} placeholder="輸入姓名" className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
+                            <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">
                                 <input 
                                     type="checkbox" id="half-day-record-fixed" 
                                     checked={isHalfDay} 
                                     onChange={(e) => setIsHalfDay(e.target.checked)} 
-                                    className="w-4 h-4 text-blue-600 rounded" 
+                                    className="w-4 h-4 text-blue-600 rounded cursor-pointer" 
                                 />
-                                <label htmlFor="half-day-record-fixed" className="text-xs font-bold text-slate-600 cursor-pointer whitespace-nowrap">半天</label>
+                                <label htmlFor="half-day-record-fixed" className="text-[10px] font-black text-slate-500 cursor-pointer whitespace-nowrap uppercase">半天</label>
                             </div>
-                            <button onClick={handleAddAssistant} disabled={!pendingAssistant.trim()} className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center"><PlusIcon className="w-5 h-5" /></button>
+                            <button onClick={handleAddAssistant} disabled={!pendingAssistant.trim()} className="w-12 h-11 bg-blue-600 text-white rounded-xl shadow-lg flex items-center justify-center transition-transform active:scale-90"><PlusIcon className="w-6 h-6" /></button>
                         </div>
                     </div>
                 </div>
 
-                <div className="border-t border-slate-100 pt-6 mt-6">
-                    <h3 className="font-bold text-lg text-slate-800 mb-4">回報內容</h3>
-                    <div className="space-y-4">
-                        <div><label className="block text-xs font-semibold text-slate-500 mb-2">天氣</label><div className="flex gap-2">{['sunny', 'cloudy', 'rainy'].map((w) => (<button key={w} onClick={() => updateReportData({ weather: w as any })} className={`flex-1 py-2 rounded-md border flex justify-center items-center ${reportWeather === w ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-slate-200'}`}>{w === 'sunny' && <SunIcon className="w-5 h-5" />}{w === 'cloudy' && <CloudIcon className="w-5 h-5" />}{w === 'rainy' && <RainIcon className="w-5 h-5" />}</button>))}</div></div>
-                        <div><label className="block text-xs font-semibold text-slate-500 mb-2">備註</label><textarea value={reportContent} onChange={e => updateReportData({ content: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm h-24 resize-none" placeholder="施工重點..." /></div>
-                        <div><label className="block text-xs font-semibold text-slate-500 mb-2">現場照片</label><div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2"><button onClick={() => reportPhotoInputRef.current?.click()} disabled={isProcessingPhotos} className="aspect-square border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 rounded-lg flex items-center justify-center">{isProcessingPhotos ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <CameraIcon className="w-6 h-6" />}</button><input type="file" multiple accept="image/*" ref={reportPhotoInputRef} className="hidden" onChange={handleReportPhotoUpload} />{reportPhotos.map(p => (<div key={p.id} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200"><img src={p.url} className="w-full h-full object-cover" /><button onClick={() => removeReportPhoto(p.id)} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1"><XIcon className="w-3.5 h-3.5" /></button></div>))}</div></div>
+                <div className="border-t border-slate-100 pt-8 mt-8">
+                    <h3 className="font-black text-slate-800 mb-6 uppercase tracking-[0.1em]">回報內容 (Nội dung báo cáo)</h3>
+                    <div className="space-y-6">
+                        <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">當日天氣 (T.Tiết)</label><div className="flex gap-3">{['sunny', 'cloudy', 'rainy'].map((w) => (<button key={w} onClick={() => updateReportData({ weather: w as any })} className={`flex-1 py-3 rounded-xl border flex justify-center items-center transition-all ${reportWeather === w ? 'bg-blue-50 border-blue-500 text-blue-600 shadow-inner' : 'bg-white border-slate-200 text-slate-300 hover:border-blue-200'}`}>{w === 'sunny' && <SunIcon className="w-6 h-6" />}{w === 'cloudy' && <CloudIcon className="w-6 h-6" />}{w === 'rainy' && <RainIcon className="w-6 h-6" />}</button>))}</div></div>
+                        <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">施工備註 (Ghi chú)</label><textarea value={reportContent} onChange={e => updateReportData({ content: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm h-32 resize-none focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-inner" placeholder="請輸入施工重點與待辦事項..." /></div>
+                        <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">現場照片 (Ảnh HT)</label><div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3"><button onClick={() => reportPhotoInputRef.current?.click()} disabled={isProcessingPhotos} className="aspect-square border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center transition-all hover:bg-blue-50 hover:border-blue-300 group">{isProcessingPhotos ? <LoaderIcon className="w-6 h-6 animate-spin" /> : <CameraIcon className="w-8 h-8 group-active:scale-90" />}</button><input type="file" multiple accept="image/*" ref={reportPhotoInputRef} className="hidden" onChange={handleReportPhotoUpload} />{reportPhotos.map(p => (<div key={p.id} className="relative aspect-square rounded-2xl overflow-hidden border border-slate-100 group bg-slate-50 flex items-center justify-center"><img src={p.url} className="max-w-full max-h-full object-contain" /><button onClick={() => removeReportPhoto(p.id)} className="absolute top-1.5 right-1.5 bg-black/50 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"><XIcon className="w-3.5 h-3.5" /></button></div>))}</div></div>
                     </div>
                 </div>
             </div>
           )}
         </div>
 
-        <div className="p-3 border-t border-slate-100 bg-white flex justify-between gap-3 flex-shrink-0 z-20 shadow-md">
-            {!isMaintenance ? <button onClick={() => setConstructionMode('overview')} className="w-12 h-10 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500"><ArrowLeftIcon className="w-5 h-5" /></button> : <div />}
+        <div className="p-3 border-t border-slate-100 bg-white flex justify-between gap-3 flex-shrink-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            {!isMaintenance ? <button onClick={() => setConstructionMode('overview')} className="w-12 h-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"><ArrowLeftIcon className="w-6 h-6" /></button> : <div />}
             <div className="flex gap-2">
-                {isEditing && <button onClick={() => setIsSigning(true)} className="w-12 h-10 flex items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200"><PenToolIcon className="w-5 h-5" /></button>}
-                {isEditing ? <button onClick={handleSubmitLog} className="px-6 h-10 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm font-bold flex items-center gap-2"><SubmitIcon className="w-4 h-4" /> 提交</button> : <button onClick={() => setIsEditing(true)} className="px-6 h-10 rounded-lg bg-slate-800 text-white hover:bg-slate-900 shadow-sm font-bold flex items-center gap-2"><EditIcon className="w-4 h-4" /> 修改</button>}
+                {isEditing && <button onClick={() => setIsSigning(true)} className="w-12 h-11 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-colors shadow-sm" title="簽證簽名 (Ký tên)"><PenToolIcon className="w-6 h-6" /></button>}
+                {isEditing ? <button onClick={handleSubmitLog} className="px-8 h-11 rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-100 font-black text-sm flex items-center gap-2 transition-all active:scale-95"><SubmitIcon className="w-5 h-5" /> 提交 (Gửi)</button> : <button onClick={() => setIsEditing(true)} className="px-8 h-11 rounded-xl bg-slate-900 text-white hover:bg-black shadow-lg shadow-slate-200 font-black text-sm flex items-center gap-2 transition-all active:scale-95"><EditIcon className="w-5 h-5" /> 修改 (Sửa)</button>}
             </div>
         </div>
         
         {isSigning && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-                <div className="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden flex flex-col">
-                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-lg text-slate-800">簽證簽名</h3><button onClick={() => setIsSigning(false)} className="text-slate-400 hover:text-slate-600"><XIcon className="w-6 h-6" /></button></div>
-                    <div className="p-4 bg-slate-200 flex items-center justify-center"><canvas ref={canvasRef} width={340} height={200} className="bg-white shadow-md cursor-crosshair touch-none rounded-lg" onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} /></div>
-                    <div className="p-4 border-t border-slate-100 flex justify-between gap-3"><button onClick={clearSignature} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"><TrashIcon className="w-5 h-5" /></button><div className="flex gap-2"><button onClick={() => setIsSigning(false)} className="px-4 py-2 text-slate-500 text-sm">取消</button><button onClick={saveSignature} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm">確認儲存</button></div></div>
+            <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fade-in">
+                <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in">
+                    <div className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-black text-slate-800">簽證簽名 (Ký tên)</h3><button onClick={() => setIsSigning(false)} className="p-2 text-slate-400 hover:text-red-500 rounded-full transition-colors"><XIcon className="w-5 h-5" /></button></div>
+                    <div className="p-6 bg-slate-200 flex items-center justify-center overflow-hidden"><canvas ref={canvasRef} width={340} height={200} className="bg-white shadow-xl cursor-crosshair touch-none rounded-2xl border-4 border-white" onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} /></div>
+                    <div className="p-6 border-t border-slate-100 flex justify-between gap-4"><button onClick={clearSignature} className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="重寫 (Viết lại)"><TrashIcon className="w-6 h-6" /></button><div className="flex gap-3"><button onClick={() => setIsSigning(false)} className="px-6 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">取消</button><button onClick={saveSignature} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-black shadow-lg shadow-blue-100 active:scale-95 transition-all">確認儲存</button></div></div>
                 </div>
             </div>
         )}

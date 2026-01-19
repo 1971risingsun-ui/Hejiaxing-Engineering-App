@@ -34,6 +34,7 @@ import { downloadBlob } from './utils/fileHelpers';
 import { generateId, sortProjects, mergeAppState, computeDiffs, getProjectDiffMessage } from './utils/dataLogic';
 import { DEFAULT_SYSTEM_RULES } from './constants/systemConfig';
 import { useAuditTrail } from './hooks/useAuditTrail';
+import { translateProjectContent } from './services/geminiService';
 
 const LOGO_URL = './logo.png';
 
@@ -75,6 +76,7 @@ const App: React.FC = () => {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // 修改：將預設 view 改為 'engineering'
   const [view, setView] = useState<'update_log' | 'engineering' | 'engineering_hub' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'purchasing_inbounds' | 'production' | 'hr' | 'equipment' | 'equipment_tools' | 'equipment_assets' | 'equipment_vehicles' | 'report' | 'users' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'outsourcing' | 'report_tracking'>('engineering');
 
   const employeeNicknames = useMemo(() => employees.map(e => e.nickname || e.name).filter(Boolean), [employees]);
@@ -272,11 +274,41 @@ const App: React.FC = () => {
       const day = week.days[date] || { date, teams: {} };
       const team = day.teams[teamId] || { tasks: [] };
       if (!team.tasks.includes(taskName)) { team.tasks = [...team.tasks, taskName]; wasAdded = true; }
-      day.teams[teamId] = team; week.days[date] = day; newSchedules[wIdx] = week;
+      day.teams[teamId] = team; day.teams[teamId] = team; week.days[date] = day; newSchedules[wIdx] = week;
       return newSchedules;
     });
     if (wasAdded) updateLastAction(`排程: ${taskName}`, `[排程系統] 將 ${taskName} 加入 ${date} 第 ${teamId} 組`);
     return wasAdded;
+  };
+
+  /**
+   * 改進後的全域翻譯處理：採用序列處理避免率限制，並確保備註被翻譯。
+   */
+  const handleTranslateAllProjects = async () => {
+    const newProjects = [...projects];
+    let successCount = 0;
+    
+    // 採用序列處理 (Sequential) 以穩定 API 請求並方便觀察進度
+    for (let i = 0; i < newProjects.length; i++) {
+        const p = newProjects[i];
+        // 僅翻譯有內容的項目
+        if (p.description || p.remarks) {
+            const translatedDesc = await translateProjectContent(p.description);
+            const translatedRemarks = await translateProjectContent(p.remarks || '');
+            
+            newProjects[i] = { 
+              ...p, 
+              description: translatedDesc || p.description, 
+              remarks: translatedRemarks || p.remarks,
+              lastModifiedAt: Date.now(),
+              lastModifiedBy: 'AI 全域翻譯'
+            };
+            successCount++;
+        }
+    }
+    
+    setProjects(sortProjects(newProjects));
+    updateLastAction('全域翻譯', `使用 AI 將 ${successCount} 件案件的詳細資訊翻譯為中越對照格式`);
   };
 
   const isViewAllowed = (viewId: string) => {
@@ -292,7 +324,7 @@ const App: React.FC = () => {
     const isBrowserSupported = 'showDirectoryPicker' in window;
     return (
       <>
-        {/* 頂部 Logo 與公司名稱區塊 - 點擊觸發工程總覽 */}
+        {/* 頂部 Logo 與公司名稱區塊 - 點擊觸發工務總覽 */}
         <div 
           onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} 
           className="flex flex-col items-center justify-center w-full px-2 py-8 mb-2 hover:bg-slate-800/50 transition-colors group text-center cursor-pointer"
@@ -377,7 +409,7 @@ const App: React.FC = () => {
            view === 'equipment_assets' ? (<AssetManagement assets={assets} onUpdateAssets={(nl) => handleUpdateList(assets, nl, setAssets, '大型設備', '地點檢驗日')} />) :
            view === 'equipment_vehicles' ? (<VehicleManagement vehicles={vehicles} onUpdateVehicles={(nl) => handleUpdateList(vehicles, nl, setVehicles, '車輛', '里程保險')} employees={employees} />) :
            selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} systemRules={systemRules} /></div>) : 
-           view === 'engineering' ? (<EngineeringView projects={projects} setProjects={setProjects} currentUser={currentUser} lastUpdateInfo={lastUpdateInfo} updateLastAction={updateLastAction} systemRules={systemRules} employees={employees} setAttendance={handleUpdateAttendance} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onEditProject={setEditingProject} handleDeleteProject={handleDeleteProject} onAddToSchedule={handleAddToSchedule} onOpenDrivingTime={() => setView('driving_time')} globalTeamConfigs={globalTeamConfigs} />) : null}
+           view === 'engineering' ? (<EngineeringView projects={projects} setProjects={setProjects} currentUser={currentUser} lastUpdateInfo={lastUpdateInfo} updateLastAction={updateLastAction} systemRules={systemRules} employees={employees} setAttendance={handleUpdateAttendance} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onEditProject={setEditingProject} handleDeleteProject={handleDeleteProject} onAddToSchedule={handleAddToSchedule} onOpenDrivingTime={() => setView('driving_time')} onTranslateAllProjects={handleTranslateAllProjects} globalTeamConfigs={globalTeamConfigs} />) : null}
         </main>
       </div>
       {syncPending && <SyncDecisionCenter diffs={syncPending.diffs} onConfirm={handleSyncConfirm} onCancel={() => { restoreDataToState(mergeAppState(syncPending.fileData || {}, syncPending.cacheData || {})); setSyncPending(null); }} />}

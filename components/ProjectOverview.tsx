@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Project, Milestone, User, UserRole } from '../types';
 import { UserIcon, PhoneIcon, PaperclipIcon, DownloadIcon, FileTextIcon, PlusIcon, CheckCircleIcon, TrashIcon, XIcon, CalendarIcon } from './Icons';
 
@@ -14,6 +14,11 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ project, currentUser,
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const [localRemarks, setLocalRemarks] = useState(project.remarks || '');
   
+  // 當父組件傳入的備註改變時（例如翻譯完成後），同步更新內部 state
+  useEffect(() => {
+    setLocalRemarks(project.remarks || '');
+  }, [project.remarks]);
+
   const canEdit = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER;
 
   const toggleMilestone = (id: string) => {
@@ -95,9 +100,9 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ project, currentUser,
            </div>
       </div>
 
-      {/* 工程概要 (原本在下方，現在移到里程碑上方) */}
+      {/* 工程概要 */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="font-bold text-lg mb-3 text-slate-800">工程概要</h3>
+          <h3 className="font-bold text-lg mb-3 text-slate-800">工程概要 (Chi tiết công trình)</h3>
           <p className="text-slate-600 leading-relaxed text-sm mb-6 whitespace-pre-wrap">{project.description}</p>
           
           {project.attachments && project.attachments.length > 0 && (
@@ -150,7 +155,7 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ project, currentUser,
           )}
       </div>
 
-      {/* 工期里程碑 / 紀錄工期 */}
+      {/* 工期里程碑 */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold text-lg text-slate-800">工期里程碑 (Milestones)</h3>
@@ -237,13 +242,13 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ project, currentUser,
       </div>
 
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="font-bold text-lg text-slate-800 mb-4">備註資訊</h3>
+          <h3 className="font-bold text-lg text-slate-800 mb-4">備註資訊 (Ghi chú)</h3>
           <textarea 
               value={localRemarks}
               onChange={(e) => setLocalRemarks(e.target.value)}
               onBlur={() => onUpdateProject({ ...project, remarks: localRemarks })}
               placeholder="點擊輸入額外備註..."
-              className="w-full min-h-[100px] p-4 bg-slate-50 border border-slate-100 rounded-lg text-sm text-slate-700 focus:bg-white outline-none transition-all resize-none"
+              className="w-full min-h-[120px] p-4 bg-slate-50 border border-slate-100 rounded-lg text-sm text-slate-700 focus:bg-white outline-none transition-all resize-none shadow-inner leading-relaxed"
           ></textarea>
       </div>
 

@@ -1,16 +1,18 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Project, User, CompletionReport as CompletionReportType, CompletionItem } from '../types';
+import { Project, User, CompletionReport as CompletionReportType, CompletionItem, SystemRules } from '../types';
 import { PlusIcon, FileTextIcon, TrashIcon, PenToolIcon, XIcon, StampIcon, CheckCircleIcon, EditIcon, LoaderIcon } from './Icons';
 import { downloadBlob } from '../utils/fileHelpers';
 
 declare const html2canvas: any;
 declare const jspdf: any;
 
+// Fix: Added systemRules to CompletionReportProps to match usage in ProjectDetail.tsx
 interface CompletionReportProps {
   project: Project;
   currentUser: User;
   onUpdateProject: (updatedProject: Project) => void;
+  systemRules: SystemRules;
 }
 
 // Define Categories and their items
@@ -64,7 +66,8 @@ const RESOURCE_ITEMS = [
     { name: '怪手 (Máy đào)', unit: '式/chuyến', category: 'RESOURCES' }
 ];
 
-const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUser, onUpdateProject }) => {
+// Fix: Destructured systemRules in CompletionReport component signature.
+const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUser, onUpdateProject, systemRules }) => {
   // State
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
   const [isEditing, setIsEditing] = useState(true);

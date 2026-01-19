@@ -53,7 +53,7 @@ export default function LoginScreen({ onLogin, users }: LoginScreenProps) {
             <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain rounded-full" />
           </div>
           <h1 className="text-2xl font-black text-white tracking-[0.2em]">合家興實業</h1>
-          <div className="text-[10px] font-bold text-yellow-500 mt-2 uppercase tracking-widest opacity-80">智能工務管理系統</div>
+          <div className="text-[10px] font-bold text-yellow-500 mt-2 uppercase tracking-widest opacity-80">工務總覽</div>
         </div>
         <div className="p-8">
           <form onSubmit={handleLogin} className="space-y-8">

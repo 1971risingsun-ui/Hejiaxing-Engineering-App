@@ -24,7 +24,7 @@ const ProjectReports: React.FC<ProjectReportsProps> = ({ project, currentUser, o
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const reportPhotoInputRef = useRef<HTMLInputElement>(null);
   
-  const canEdit = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER;
+  const canEdit = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.ENGINEERING || currentUser.role === UserRole.WORKER;
 
   const handleReportPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {

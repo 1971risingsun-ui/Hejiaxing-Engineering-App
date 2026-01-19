@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => {
         includeAssets: [LOGO_PATH, 'favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
           name: '合家興工程日誌',
-          short_name: '合家興工程日誌',
-          description: '合家興工程日誌',
+          short_name: '工程日誌',
+          description: '合家興工程日誌(手機版)',
           theme_color: '#0f172a',
           background_color: '#f8fafc',
           display: 'standalone',

@@ -30,8 +30,9 @@ const ReportTrackingView: React.FC<ReportTrackingViewProps> = ({ projects, daily
     
     dailyDispatches.forEach(disp => {
         const date = disp.date;
-        Object.values(disp.teams).forEach(team => {
-            team.tasks.forEach(task => {
+        // Fix: Explicitly cast values of disp.teams to any array to resolve 'unknown' type errors on line 34 and 36
+        (Object.values(disp.teams) as any[]).forEach(team => {
+            team.tasks.forEach((task: any) => {
                 const projectName = task.name;
                 const master = team.master;
                 
