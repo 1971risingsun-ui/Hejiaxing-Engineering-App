@@ -1,15 +1,20 @@
-
 import React, { useState } from 'react';
-import { User } from '../types';
+import { User, UserRole } from '../types';
+import { generateId } from '../utils/dataLogic';
 
-export interface LoginScreenProps {
+interface LoginScreenProps {
   onLogin: (user: User) => void;
   users: User[];
 }
 
-export default function LoginScreen({ onLogin, users }: LoginScreenProps) {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, users }) => {
+  const [role, setRole] = useState<UserRole>(() => {
+    const savedRole = localStorage.getItem('lastUsedRole');
+    return (savedRole as UserRole) || UserRole.ADMIN;
+  });
+  
   const [email, setEmail] = useState(() => {
-    return localStorage.getItem('lastUsedEmail') || '@hejiaxing.ai';
+    return localStorage.getItem('lastUsedEmail') || 'demo@hejiaxing.ai';
   });
 
   const [loading, setLoading] = useState(false);
@@ -20,25 +25,29 @@ export default function LoginScreen({ onLogin, users }: LoginScreenProps) {
     e.preventDefault();
     setLoading(true);
     
-    // 模擬驗證延遲
+    // 模擬網路延遲
     setTimeout(() => {
       try {
-        const trimmedEmail = email.trim().toLowerCase();
-        // 執行比對：從系統使用者名單中尋找匹配的 Email
-        const matchedUser = users.find(u => u.email.toLowerCase() === trimmedEmail);
+        let displayName = '現場人員';
+        if (role === UserRole.ADMIN) displayName = '管理員';
+        else if (role === UserRole.MANAGER) displayName = '專案經理';
+        else if (role === UserRole.ENGINEERING) displayName = '工務人員';
+        else if (role === UserRole.FACTORY) displayName = '廠務人員';
 
-        if (matchedUser) {
-          // 成功比對：儲存最後使用的帳號並執行登入
-          localStorage.setItem('lastUsedEmail', trimmedEmail);
-          localStorage.setItem('lastUsedRole', matchedUser.role);
-          
-          onLogin(matchedUser);
-        } else {
-          // 比對失敗：Email 不在名單中
-          alert("登入失敗：此電子郵件尚未註冊於系統中。請聯繫管理員新增帳號。");
-        }
+        // 儲存登入資訊
+        localStorage.setItem('lastUsedEmail', email);
+        localStorage.setItem('lastUsedRole', role);
+
+        const mockUser: User = { 
+          id: generateId(), 
+          name: displayName, 
+          email: email, 
+          role: role, 
+          avatar: LOGO_URL 
+        };
+        onLogin(mockUser);
       } catch (err) { 
-        alert("登入發生錯誤，請稍後再試。"); 
+        alert("登入發生錯誤，請重新整理頁面。"); 
       } finally { 
         setLoading(false); 
       }
@@ -49,49 +58,55 @@ export default function LoginScreen({ onLogin, users }: LoginScreenProps) {
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden">
         <div className="bg-slate-900 p-10 text-center flex flex-col items-center">
-          <div className="w-32 h-32 mb-6 rounded-full bg-white p-1 shadow-xl">
+          <div className="w-24 h-24 mb-6 rounded-full bg-white p-1 shadow-xl">
             <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain rounded-full" />
           </div>
           <h1 className="text-2xl font-black text-white tracking-[0.2em]">合家興實業</h1>
-          <div className="text-[10px] font-bold text-yellow-500 mt-2 uppercase tracking-widest opacity-80">工務總覽</div>
+          <div className="text-[10px] font-bold text-yellow-500 mt-2 uppercase tracking-widest opacity-80">行政管理系統</div>
         </div>
         <div className="p-8">
-          <form onSubmit={handleLogin} className="space-y-8">
+          <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-widest">電子郵件帳號</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">電子郵件 / 帳號</label>
               <input 
                 type="email" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)} 
                 required 
-                placeholder="輸入您的公司信箱"
-                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none transition focus:ring-2 focus:ring-blue-500 focus:bg-white font-medium shadow-inner" 
+                placeholder="請輸入 Email"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none transition focus:ring-2 focus:ring-blue-500 font-bold" 
               />
-              <p className="mt-3 text-[11px] text-slate-400 font-medium leading-relaxed">
-                系統將自動根據您的帳號設定判斷存取權限。
-              </p>
             </div>
-            
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-3">選擇登入身份</label>
+              <div className="grid grid-cols-2 gap-2">
+                {[UserRole.ADMIN, UserRole.MANAGER, UserRole.ENGINEERING, UserRole.FACTORY, UserRole.WORKER].map(r => (
+                  <button 
+                    key={r} 
+                    type="button" 
+                    onClick={() => setRole(r)} 
+                    className={`py-3 px-1 text-xs rounded-xl border-2 transition-all ${role === r ? 'bg-blue-600 border-blue-600 text-white font-black shadow-md scale-[1.02]' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                  >
+                    {r === UserRole.ADMIN ? '管理員' : r === UserRole.MANAGER ? '經理' : r === UserRole.ENGINEERING ? '工務' : r === UserRole.FACTORY ? '廠務' : '現場人員'}
+                  </button>
+                ))}
+              </div>
+            </div>
             <button 
               type="submit" 
               disabled={loading} 
-              className="w-full bg-slate-900 hover:bg-black text-white py-4 rounded-2xl font-black shadow-xl shadow-slate-200 transition-all active:scale-[0.98] flex justify-center items-center disabled:opacity-70 group"
+              className="w-full bg-slate-900 hover:bg-black text-white py-4 rounded-2xl font-black shadow-xl shadow-slate-200 transition-all flex justify-center items-center gap-2 disabled:opacity-70 active:scale-95"
             >
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  <span>身份驗證中...</span>
-                </div>
-              ) : "登入系統"}
+              {loading ? "正在驗證身份..." : "進入系統"}
             </button>
           </form>
         </div>
-        <div className="px-8 py-5 bg-slate-50 border-t border-slate-100 text-center">
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                He Jia Xing Construction Management
-            </p>
+        <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">He Jia Xing Enterprise Co., Ltd.</p>
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default LoginScreen;
