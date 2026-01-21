@@ -1,44 +1,44 @@
-
 import React, { useState } from 'react';
-import { User } from '../types';
+import { User, UserRole } from '../types';
+import { generateId } from '../utils/dataLogic';
 
-export interface LoginScreenProps {
+interface LoginScreenProps {
   onLogin: (user: User) => void;
-  users: User[];
+  allUsers: User[];
 }
 
-export default function LoginScreen({ onLogin, users }: LoginScreenProps) {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, allUsers }) => {
   const [email, setEmail] = useState(() => {
-    return localStorage.getItem('lastUsedEmail') || '@hejiaxing.ai';
+    return localStorage.getItem('lastUsedEmail') || 'demo@hejiaxing.ai';
   });
 
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const LOGO_URL = './logo.png';
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
     
-    // 模擬驗證延遲
     setTimeout(() => {
       try {
-        const trimmedEmail = email.trim().toLowerCase();
-        // 執行比對：從系統使用者名單中尋找匹配的 Email
-        const matchedUser = users.find(u => u.email.toLowerCase() === trimmedEmail);
-
-        if (matchedUser) {
-          // 成功比對：儲存最後使用的帳號並執行登入
-          localStorage.setItem('lastUsedEmail', trimmedEmail);
-          localStorage.setItem('lastUsedRole', matchedUser.role);
-          
-          onLogin(matchedUser);
-        } else {
-          // 比對失敗：Email 不在名單中
-          alert("登入失敗：此電子郵件尚未註冊於系統中。請聯繫管理員新增帳號。");
+        const foundUser = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+        
+        if (!foundUser) {
+          setError('帳號不存在');
+          setLoading(false);
+          return;
         }
+
+        // 在正式進入系統前儲存本次登入資訊
+        localStorage.setItem('lastUsedEmail', email);
+
+        // 使用找到的使用者資料進行登入
+        onLogin(foundUser);
       } catch (err) { 
-        alert("登入發生錯誤，請稍後再試。"); 
+        setError("登入發生錯誤"); 
       } finally { 
         setLoading(false); 
       }
@@ -53,45 +53,43 @@ export default function LoginScreen({ onLogin, users }: LoginScreenProps) {
             <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain rounded-full" />
           </div>
           <h1 className="text-2xl font-black text-white tracking-[0.2em]">合家興實業</h1>
-          <div className="text-[10px] font-bold text-yellow-500 mt-2 uppercase tracking-widest opacity-80">工務總覽</div>
+          <div className="text-[10px] font-bold text-yellow-500 mt-2 uppercase tracking-widest opacity-80">行政管理系統</div>
         </div>
         <div className="p-8">
-          <form onSubmit={handleLogin} className="space-y-8">
+          <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-widest">電子郵件帳號</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">電子郵件</label>
               <input 
                 type="email" 
                 value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) setError(null);
+                }} 
                 required 
-                placeholder="輸入您的公司信箱"
-                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none transition focus:ring-2 focus:ring-blue-500 focus:bg-white font-medium shadow-inner" 
+                className={`w-full px-4 py-2 border rounded-lg outline-none transition focus:ring-2 ${error ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 focus:ring-blue-500'}`} 
               />
-              <p className="mt-3 text-[11px] text-slate-400 font-medium leading-relaxed">
-                系統將自動根據您的帳號設定判斷存取權限。
-              </p>
+              {error && <p className="text-red-500 text-xs mt-1 font-bold">⚠️ {error}</p>}
             </div>
             
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+               <p className="text-[10px] text-slate-400 font-bold leading-relaxed">
+                 * 請輸入您在系統中註冊的電子郵件，系統將根據帳號設定自動分配存取權限。
+               </p>
+            </div>
+
             <button 
               type="submit" 
               disabled={loading} 
-              className="w-full bg-slate-900 hover:bg-black text-white py-4 rounded-2xl font-black shadow-xl shadow-slate-200 transition-all active:scale-[0.98] flex justify-center items-center disabled:opacity-70 group"
+              className="w-full bg-slate-900 hover:bg-black text-white py-3 rounded-xl font-bold shadow-lg transition-all flex justify-center items-center disabled:opacity-70"
             >
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  <span>身份驗證中...</span>
-                </div>
-              ) : "登入系統"}
+              {loading ? "驗證中..." : "登入系統"}
             </button>
           </form>
-        </div>
-        <div className="px-8 py-5 bg-slate-50 border-t border-slate-100 text-center">
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                He Jia Xing Construction Management
-            </p>
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default LoginScreen;

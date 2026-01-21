@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder, SystemRules, StockAlertItem, Tool, Asset, Vehicle } from './types';
 import EngineeringView from './components/EngineeringView';
@@ -42,7 +41,7 @@ const App: React.FC = () => {
   // --- 狀態管理 ---
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([{ id: 'u-1', name: 'Admin User', email: 'admin@hejiaxing.ai', role: UserRole.ADMIN, avatar: LOGO_URL },{ id: 'u-2', name: 'Test player No.1', email: 'player.1@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-3', name: 'Test player A', email: 'player.a@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-4', name: 'Test player Z', email: 'player.z@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-5', name: 'Test player No.0', email: 'player.0@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL }]);
+  const [allUsers, setAllUsers] = useState<User[]>([{ id: 'u-1', name: 'Admin User', email: 'admin@hejiaxing.ai', role: UserRole.ADMIN, avatar: LOGO_URL },{ id: 'u-2', name: 'Test player No.1', email: 'player.1@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-3', name: 'Test player A', email: 'player.a@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-4', name: 'Test player Z', email: 'player.z@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-5', name: 'Test player No.0', email: 'player.0@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-6', name: '蔡豪昌', email: 'player0526@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-7', name: '馮朝隆', email: 'player1012@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-8', name: '周承宇', email: 'player0117@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-9', name: '林崇瑋', email: 'player1029@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-10', name: '吳進瑋', email: 'player1028@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-11', name: '謝成', email: 'player0815@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-12', name: '林進浤', email: 'player0523@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-13', name: '李福昇', email: 'player0202@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-14', name: '江冠逸', email: 'player0508@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-15', name: '團文景', email: 'player0515@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-16', name: '阮文秀', email: 'player0213@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-17', name: '陳慶', email: 'player0522@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-18', name: '胡克瓊', email: 'player0818@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-19', name: '杜文選', email: 'player1003@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-20', name: '高光商', email: 'player821223@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-21', name: '范文後', email: 'player0805@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-22', name: '阮庭决', email: 'player951223@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL }]);
   const [weeklySchedules, setWeeklySchedules] = useState<WeeklyScheduleType[]>([]);
   const [dailyDispatches, setDailyDispatches] = useState<DailyDispatchType[]>([]);
   const [globalTeamConfigs, setGlobalTeamConfigs] = useState<GlobalTeamConfigs>({});
@@ -76,7 +75,6 @@ const App: React.FC = () => {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  // 修改：將預設 view 改為 'engineering'
   const [view, setView] = useState<'update_log' | 'engineering' | 'engineering_hub' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'purchasing_inbounds' | 'production' | 'hr' | 'equipment' | 'equipment_tools' | 'equipment_assets' | 'equipment_vehicles' | 'report' | 'users' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'outsourcing' | 'report_tracking'>('engineering');
 
   const employeeNicknames = useMemo(() => employees.map(e => e.nickname || e.name).filter(Boolean), [employees]);
@@ -274,7 +272,7 @@ const App: React.FC = () => {
       const day = week.days[date] || { date, teams: {} };
       const team = day.teams[teamId] || { tasks: [] };
       if (!team.tasks.includes(taskName)) { team.tasks = [...team.tasks, taskName]; wasAdded = true; }
-      day.teams[teamId] = team; day.teams[teamId] = team; week.days[date] = day; newSchedules[wIdx] = week;
+      day.teams[teamId] = team; week.days[date] = day; newSchedules[wIdx] = week;
       return newSchedules;
     });
     if (wasAdded) updateLastAction(`排程: ${taskName}`, `[排程系統] 將 ${taskName} 加入 ${date} 第 ${teamId} 組`);
@@ -294,7 +292,7 @@ const App: React.FC = () => {
         // 僅翻譯有內容的項目
         if (p.description || p.remarks) {
             const translatedDesc = await translateProjectContent(p.description);
-            const translatedRemarks = await translateProjectContent(p.remarks || '');
+            const translatedRemarks = await translateProjectContent(p.remarks);
             
             newProjects[i] = { 
               ...p, 
@@ -317,16 +315,16 @@ const App: React.FC = () => {
     return !!systemRules.rolePermissions?.[currentUser.role]?.allowedViews?.includes(viewId);
   };
 
-  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} users={allUsers} />;
+  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} allUsers={allUsers} />;
 
   const renderSidebarContent = () => {
     const isConnected = dirHandle && dirPermission === 'granted';
     const isBrowserSupported = 'showDirectoryPicker' in window;
     return (
       <>
-        {/* 頂部 Logo 與公司名稱區塊 - 點擊觸發工務總覽 */}
+        {/* 頂部 Logo 與公司名稱區塊 - 點擊觸發異動日誌 */}
         <div 
-          onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} 
+          onClick={() => { setSelectedProject(null); setView('update_log'); setIsSidebarOpen(false); }} 
           className="flex flex-col items-center justify-center w-full px-2 py-8 mb-2 hover:bg-slate-800/50 transition-colors group text-center cursor-pointer"
         >
            <div className="w-20 h-20 mb-4 rounded-full bg-white p-0.5 shadow-lg border border-slate-700 transition-transform active:scale-95 group-hover:shadow-blue-500/20">
@@ -349,7 +347,6 @@ const App: React.FC = () => {
           {isViewAllowed('equipment') && <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' || view.startsWith('equipment_') ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><WrenchIcon className="w-5 h-5" /> <span className="font-medium">設備／工具</span></button>}
           
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">系統輔助</div>
-          {isViewAllowed('update_log') && <button onClick={() => { setView('update_log'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'update_log' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><HistoryIcon className="w-4 h-4" /> <span className="font-medium">異動日誌</span></button>}
           {isViewAllowed('users') && <button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統帳號設定</span></button>}
 
           <div className="pt-4 border-t border-slate-800 mt-4 space-y-2">
@@ -376,7 +373,7 @@ const App: React.FC = () => {
       <div className={`fixed inset-0 z-[100] md:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}><div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} /><aside className={`absolute left-0 top-0 bottom-0 w-64 bg-slate-900 text-white flex flex-col transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>{renderSidebarContent()}</aside></div>
       <aside className="hidden md:flex w-64 flex-col bg-slate-900 text-white flex-shrink-0">{renderSidebarContent()}</aside>
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shadow-sm z-20 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-slate-500 p-2"><MenuIcon className="w-6 h-6" /></button><div className="text-sm font-bold text-slate-700">{selectedProject ? selectedProject.name : '合家興工程日誌'}</div><div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shadow-sm"><img src={LOGO_URL} alt="User" className="w-full h-full object-cover" /></div></header>
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shadow-sm z-20 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-slate-500 p-2"><MenuIcon className="w-6 h-6" /></button><div className="text-sm font-bold text-slate-700">{selectedProject ? selectedProject.name : '合家興工程日誌(手機版)'}</div><div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shadow-sm"><img src={LOGO_URL} alt="User" className="w-full h-full object-cover" /></div></header>
         <main className="flex-1 min-h-0 bg-[#f8fafc] pb-safe flex flex-col overflow-hidden">
           {view === 'update_log' ? (<AuditLogList logs={auditLogs} />) : 
            view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={(nl) => handleUpdateList(allUsers, nl, setAllUsers, '系統帳號')} auditLogs={auditLogs} onLogAction={(action, details) => updateLastAction('系統', details)} projects={projects} onRestoreData={restoreDataToState} systemRules={systemRules} onUpdateSystemRules={setSystemRules} />) : 
