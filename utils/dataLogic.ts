@@ -20,7 +20,7 @@ export const sortProjects = (list: Project[]) => {
 
 /**
  * 更新不覆蓋合併邏輯 (Update not Overwrite)
- * 基於 lastModifiedAt 進行判斷，保留較新的版本。
+ * 基於 lastModifiedAt 進行判斷，永遠保留較新的版本。
  */
 export const mergeLists = <T extends { id: string | number; lastModifiedAt?: number }>(base: T[], incoming: T[]): T[] => {
   const map = new Map<string | number, T>();
@@ -35,14 +35,14 @@ export const mergeLists = <T extends { id: string | number; lastModifiedAt?: num
     if (!item || !item.id) return;
     const existing = map.get(item.id);
     if (!existing) {
-      // 全新項目，直接加入
+      // 若是全新項目，直接加入
       map.set(item.id, item);
     } else {
-      // 已存在項目，比對時間戳記
+      // 若項目已存在，比較時間戳記
       const existingTime = existing.lastModifiedAt || 0;
       const incomingTime = item.lastModifiedAt || 0;
       
-      // 只有當傳入的資料嚴格較新時才進行覆寫
+      // 只有當傳入的資料「嚴格較新」時才進行覆寫，否則保留基底
       if (incomingTime > existingTime) {
         map.set(item.id, item);
       }
@@ -52,6 +52,9 @@ export const mergeLists = <T extends { id: string | number; lastModifiedAt?: num
   return Array.from(map.values());
 };
 
+/**
+ * 全域狀態安全合併
+ */
 export const mergeAppState = (base: any, incoming: any) => {
   if (!base) return incoming;
   if (!incoming) return base;
@@ -74,7 +77,7 @@ export const mergeAppState = (base: any, incoming: any) => {
 };
 
 /**
- * 計算差異並過濾掉可自動合併的部分
+ * 計算兩端差異，並僅回傳無法自動判定（時間戳記相同但內容不同）的真正衝突
  */
 export const computeDiffs = (file: any, cache: any) => {
   const categories = ['projects', 'employees', 'suppliers', 'subcontractors', 'purchaseOrders', 'stockAlertItems', 'tools', 'assets', 'vehicles'];
@@ -89,17 +92,16 @@ export const computeDiffs = (file: any, cache: any) => {
       const f = fileList.find((i: any) => i.id === id);
       const c = cacheList.find((i: any) => i.id === id);
       
-      // 僅存在於某一端，不視為「衝突」，視為「新增」，可由 mergeAppState 自動處理
+      // 情況 A：僅存在於某一端，不視為衝突（合併時會自動依據 mergeLists 邏輯處理）
       if (!f || !c) return null;
       
-      // 兩端皆有，比對時間戳記與內容
       const fTime = f.lastModifiedAt || 0;
       const cTime = c.lastModifiedAt || 0;
       
-      // 若時間戳記不同，則依照「更新不覆蓋」原則自動取新者，不需手動決策
+      // 情況 B：時間戳記不同，自動取新者，不需手動決策
       if (fTime !== cTime) return null;
       
-      // 若時間戳記相同但內容不同，才是真正的衝突 (無法判定誰是最新)
+      // 情況 C：時間戳記相同但 JSON 內容不同，這是真正的衝突
       if (JSON.stringify(f) !== JSON.stringify(c)) {
         return { 
           id, 
@@ -107,7 +109,7 @@ export const computeDiffs = (file: any, cache: any) => {
           status: 'CONFLICT', 
           fileData: f, 
           cacheData: c, 
-          newer: 'equal', // 時間戳相同
+          newer: 'equal', 
           fileTime: fTime, 
           cacheTime: cTime 
         };
