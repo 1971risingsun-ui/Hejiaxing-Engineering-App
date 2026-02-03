@@ -9,7 +9,7 @@ interface LoginScreenProps {
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, allUsers, onRemoteSync }) => {
   const [email, setEmail] = useState(() => {
-    return localStorage.getItem('lastUsedEmail') || 'admin@hejiaxing.ai';
+    return localStorage.getItem('lastUsedEmail') || '@hejiaxing.ai';
   });
 
   const [loading, setLoading] = useState(false);
@@ -56,7 +56,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, allUsers, onRemoteSy
             <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain rounded-full" />
           </div>
           <h1 className="text-2xl font-black text-white tracking-[0.2em]">合家興實業</h1>
-          <div className="text-[10px] font-bold text-yellow-500 mt-2 uppercase tracking-widest opacity-80">行政管理系統</div>
+          <div className="text-[10px] font-bold text-yellow-500 mt-2 uppercase tracking-widest opacity-80">工程日誌(手機版)</div>
         </div>
         <div className="p-8">
           <form onSubmit={handleLogin} className="space-y-6">
