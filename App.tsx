@@ -19,7 +19,6 @@ import GlobalProduction from './components/GlobalProduction';
 import GlobalOutsourcing from './components/GlobalOutsourcing';
 import GlobalPurchasingItems from './components/GlobalPurchasingItems';
 import StockAlert from './components/StockAlert';
-// Fix: Removed incorrect default import of MapPinIcon and merged it into the named imports block below.
 import EquipmentModule from './components/EquipmentModule';
 import ToolManagement from './components/ToolManagement';
 import AssetManagement from './components/AssetManagement';
@@ -43,7 +42,7 @@ const App: React.FC = () => {
   // --- 狀態管理 ---
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([{ id: 'u-1', name: 'Admin User', email: 'admin@hejiaxing.ai', role: UserRole.ADMIN, avatar: LOGO_URL },{ id: 'u-2', name: 'Test player No.1', email: 'player.1@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-3', name: 'Test player A', email: 'player.a@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-4', name: 'Test player Z', email: 'player.z@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-5', name: 'Test player No.0', email: 'player.0@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-6', name: '蔡豪昌', email: 'player0526@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-7', name: '馮朝隆', email: 'player1012@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-8', name: '周承宇', email: 'player0117@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-9', name: '林崇瑋', email: 'player1029@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-10', name: '吳進瑋', email: 'player1028@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-11', name: '謝成', email: 'player0815@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-12', name: '林進浤', email: 'player0523@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-13', name: '李福昇', email: 'player0202@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-14', name: '江冠逸', email: 'player0508@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-15', name: '團文景', email: 'player0515@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-16', name: '阮文秀', email: 'player0213@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-17', name: '陳慶', email: 'player0522@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-18', name: '胡克瓊', email: 'player0818@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-19', name: '杜文選', email: 'player1003@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-20', name: '高光商', email: 'player821223@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-21', name: '范文後', email: 'player0805@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL },{ id: 'u-22', name: '阮庭决', email: 'player951223@hejiaxing.ai', role: UserRole.WORKER, avatar: LOGO_URL }]);
+  const [allUsers, setAllUsers] = useState<User[]>([{ id: 'u-1', name: 'Admin User', email: 'admin@hejiaxing.ai', role: UserRole.ADMIN, avatar: LOGO_URL }]);
   const [weeklySchedules, setWeeklySchedules] = useState<WeeklyScheduleType[]>([]);
   const [dailyDispatches, setDailyDispatches] = useState<DailyDispatchType[]>([]);
   const [globalTeamConfigs, setGlobalTeamConfigs] = useState<GlobalTeamConfigs>({});
@@ -144,20 +143,20 @@ const App: React.FC = () => {
   }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
 
   // --- 遠端同步邏輯 ---
-  const handleSyncFromRemote = async () => {
+  const handleSyncFromRemote = async (): Promise<User[]> => {
     try {
       const response = await fetch(REMOTE_DB_URL, { cache: 'no-store' });
       if (response.ok) {
         const data = await response.json();
-        // 更新當前狀態
+        // 更新 React 狀態 (包含名單與案件等全域資料)
         restoreDataToState(data);
-        // 持久化到本地 IndexedDB
+        // 資料優先同步至瀏覽器快取 (IndexedDB)
         await saveAppStateToIdb(data);
-        // 返回最新的使用者清單以便 LoginScreen 驗證
+        // 返回最新的使用者清單以便 LoginScreen 進行即時比對
         return data.users as User[] || allUsers;
       }
     } catch (e) {
-      console.warn('遠端資料同步失敗，將使用本地快取。', e);
+      console.warn('遠端資料同步失敗，將使用瀏覽器本地快取。', e);
     }
     return allUsers;
   };
@@ -277,7 +276,7 @@ const App: React.FC = () => {
     const project = projects.find(p => p.id === projectId); if (!project) return;
     if (window.confirm(`確定要刪除案件「${project.name}」嗎？此操作無法還原。`)) {
       setProjects(prev => prev.filter(p => p.id !== projectId));
-      updateLastAction(project.name, `[${project.name}] 刪過了案件`);
+      updateLastAction(project.name, `[${project.name}] 刪除了案件`);
     }
   };
 
@@ -335,7 +334,6 @@ const App: React.FC = () => {
     const isBrowserSupported = 'showDirectoryPicker' in window;
     return (
       <>
-        {/* 頂部 Logo 與公司名稱區塊 - 點擊觸發異動日誌 */}
         <div 
           onClick={() => { setSelectedProject(null); setView('update_log'); setIsSidebarOpen(false); }} 
           className="flex flex-col items-center justify-center w-full px-2 py-8 mb-2 hover:bg-slate-800/50 transition-colors group text-center cursor-pointer"
