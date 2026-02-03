@@ -5,9 +5,10 @@ import { generateId } from '../utils/dataLogic';
 interface LoginScreenProps {
   onLogin: (user: User) => void;
   allUsers: User[];
+  onRemoteSync: () => Promise<User[]>;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, allUsers }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, allUsers, onRemoteSync }) => {
   const [email, setEmail] = useState(() => {
     return localStorage.getItem('lastUsedEmail') || 'demo@hejiaxing.ai';
   });
@@ -17,32 +18,34 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, allUsers }) => {
 
   const LOGO_URL = './logo.png';
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     
-    setTimeout(() => {
-      try {
-        const foundUser = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-        
-        if (!foundUser) {
-          setError('帳號不存在');
-          setLoading(false);
-          return;
-        }
-
-        // 在正式進入系統前儲存本次登入資訊
-        localStorage.setItem('lastUsedEmail', email);
-
-        // 使用找到的使用者資料進行登入
-        onLogin(foundUser);
-      } catch (err) { 
-        setError("登入發生錯誤"); 
-      } finally { 
-        setLoading(false); 
+    try {
+      // 1. 在進入系統前，先從遠端同步最新資料
+      const latestUsers = await onRemoteSync();
+      
+      // 2. 使用最新的使用者清單進行比對
+      const foundUser = latestUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+      
+      if (!foundUser) {
+        setError('帳號不存在');
+        setLoading(false);
+        return;
       }
-    }, 800);
+
+      // 儲存本次登入 email
+      localStorage.setItem('lastUsedEmail', email);
+
+      // 使用找到的使用者資料進行登入
+      onLogin(foundUser);
+    } catch (err) { 
+      setError("登入發生錯誤，請檢查網路連線"); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   return (
@@ -74,7 +77,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, allUsers }) => {
             
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                <p className="text-[10px] text-slate-400 font-bold leading-relaxed">
-                 * 請輸入您在系統中註冊的電子郵件，系統將根據帳號設定自動分配存取權限。
+                 * 系統將從雲端同步最新帳號資訊。請輸入您在系統中註冊的電子郵件，系統將自動分配權限。
                </p>
             </div>
 
@@ -83,7 +86,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, allUsers }) => {
               disabled={loading} 
               className="w-full bg-slate-900 hover:bg-black text-white py-3 rounded-xl font-bold shadow-lg transition-all flex justify-center items-center disabled:opacity-70"
             >
-              {loading ? "驗證中..." : "登入系統"}
+              {loading ? "雲端同步中..." : "登入系統"}
             </button>
           </form>
         </div>
