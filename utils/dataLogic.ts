@@ -18,14 +18,44 @@ export const sortProjects = (list: Project[]) => {
   });
 };
 
-export const mergeLists = <T extends { id: string | number }>(base: T[], incoming: T[]): T[] => {
+/**
+ * 更新不覆蓋合併邏輯 (Update not Overwrite)
+ * 基於 lastModifiedAt 進行判斷，保留較新的版本。
+ */
+export const mergeLists = <T extends { id: string | number; lastModifiedAt?: number }>(base: T[], incoming: T[]): T[] => {
   const map = new Map<string | number, T>();
-  base.forEach(item => map.set(item.id, item));
-  incoming.forEach(item => map.set(item.id, item));
+  
+  // 1. 載入基底資料 (通常是本地暫存)
+  base.forEach(item => {
+    if (item && item.id) map.set(item.id, item);
+  });
+  
+  // 2. 處理傳入資料 (通常是遠端雲端資料)
+  incoming.forEach(item => {
+    if (!item || !item.id) return;
+    const existing = map.get(item.id);
+    if (!existing) {
+      // 全新項目，直接加入
+      map.set(item.id, item);
+    } else {
+      // 已存在項目，比對時間戳記
+      const existingTime = existing.lastModifiedAt || 0;
+      const incomingTime = item.lastModifiedAt || 0;
+      
+      // 只有當傳入的資料嚴格較新時才進行覆寫
+      if (incomingTime > existingTime) {
+        map.set(item.id, item);
+      }
+    }
+  });
+  
   return Array.from(map.values());
 };
 
 export const mergeAppState = (base: any, incoming: any) => {
+  if (!base) return incoming;
+  if (!incoming) return base;
+
   return {
     ...base,
     ...incoming, 
@@ -43,22 +73,47 @@ export const mergeAppState = (base: any, incoming: any) => {
   };
 };
 
+/**
+ * 計算差異並過濾掉可自動合併的部分
+ */
 export const computeDiffs = (file: any, cache: any) => {
   const categories = ['projects', 'employees', 'suppliers', 'subcontractors', 'purchaseOrders', 'stockAlertItems', 'tools', 'assets', 'vehicles'];
   const results: Record<string, any[]> = {};
 
   categories.forEach((key) => {
-    const fileList = file[key] || [];
-    const cacheList = cache[key] || [];
+    const fileList = Array.isArray(file[key]) ? file[key] : [];
+    const cacheList = Array.isArray(cache[key]) ? cache[key] : [];
     const allIds = Array.from(new Set([...fileList.map((i: any) => i.id), ...cacheList.map((i: any) => i.id)]));
 
     results[key] = allIds.map(id => {
       const f = fileList.find((i: any) => i.id === id);
       const c = cacheList.find((i: any) => i.id === id);
-      if (!f) return { id, name: c.name || c.plateNumber || id, status: 'ONLY_CACHE', data: c, side: 'cache', cacheTime: c.lastModifiedAt };
-      if (!c) return { id, name: f.name || f.plateNumber || id, status: 'ONLY_FILE', data: f, side: 'file', fileTime: f.lastModifiedAt };
-      if (f.lastModifiedAt === c.lastModifiedAt && JSON.stringify(f) === JSON.stringify(c)) return null; 
-      return { id, name: f.name || f.plateNumber || id, status: 'CONFLICT', fileData: f, cacheData: c, newer: (f.lastModifiedAt || 0) > (c.lastModifiedAt || 0) ? 'file' : 'cache', fileTime: f.lastModifiedAt, cacheTime: c.lastModifiedAt };
+      
+      // 僅存在於某一端，不視為「衝突」，視為「新增」，可由 mergeAppState 自動處理
+      if (!f || !c) return null;
+      
+      // 兩端皆有，比對時間戳記與內容
+      const fTime = f.lastModifiedAt || 0;
+      const cTime = c.lastModifiedAt || 0;
+      
+      // 若時間戳記不同，則依照「更新不覆蓋」原則自動取新者，不需手動決策
+      if (fTime !== cTime) return null;
+      
+      // 若時間戳記相同但內容不同，才是真正的衝突 (無法判定誰是最新)
+      if (JSON.stringify(f) !== JSON.stringify(c)) {
+        return { 
+          id, 
+          name: f.name || f.plateNumber || id, 
+          status: 'CONFLICT', 
+          fileData: f, 
+          cacheData: c, 
+          newer: 'equal', // 時間戳相同
+          fileTime: fTime, 
+          cacheTime: cTime 
+        };
+      }
+      
+      return null;
     }).filter(Boolean);
   });
   return results;
