@@ -19,6 +19,7 @@ import GlobalProduction from './components/GlobalProduction';
 import GlobalOutsourcing from './components/GlobalOutsourcing';
 import GlobalPurchasingItems from './components/GlobalPurchasingItems';
 import StockAlert from './components/StockAlert';
+// Fix: Removed incorrect default import of MapPinIcon and merged it into the named imports block below.
 import EquipmentModule from './components/EquipmentModule';
 import ToolManagement from './components/ToolManagement';
 import AssetManagement from './components/AssetManagement';
@@ -27,7 +28,7 @@ import SyncDecisionCenter from './components/SyncDecisionCenter';
 import AuditLogList from './components/AuditLogList';
 import DrivingTimeEstimator from './components/DrivingTimeEstimator';
 import ReportTrackingView from './components/ReportTrackingView';
-import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, UsersIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon, HistoryIcon } from './components/Icons';
+import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, UsersIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon, HistoryIcon, MapPinIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
 import { generateId, sortProjects, mergeAppState, computeDiffs, getProjectDiffMessage } from './utils/dataLogic';
@@ -36,6 +37,7 @@ import { useAuditTrail } from './hooks/useAuditTrail';
 import { translateProjectContent } from './services/geminiService';
 
 const LOGO_URL = './logo.png';
+const REMOTE_DB_URL = 'https://1971risingsun-ui.github.io/Hejiaxing-internal-control-system/db.json';
 
 const App: React.FC = () => {
   // --- 狀態管理 ---
@@ -140,6 +142,25 @@ const App: React.FC = () => {
     const timer = setTimeout(save, 500);
     return () => clearTimeout(timer);
   }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
+
+  // --- 遠端同步邏輯 ---
+  const handleSyncFromRemote = async () => {
+    try {
+      const response = await fetch(REMOTE_DB_URL, { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        // 更新當前狀態
+        restoreDataToState(data);
+        // 持久化到本地 IndexedDB
+        await saveAppStateToIdb(data);
+        // 返回最新的使用者清單以便 LoginScreen 驗證
+        return data.users as User[] || allUsers;
+      }
+    } catch (e) {
+      console.warn('遠端資料同步失敗，將使用本地快取。', e);
+    }
+    return allUsers;
+  };
 
   // --- 精確更新攔截器 ---
   const handleUpdateList = <T extends object>(
@@ -256,7 +277,7 @@ const App: React.FC = () => {
     const project = projects.find(p => p.id === projectId); if (!project) return;
     if (window.confirm(`確定要刪除案件「${project.name}」嗎？此操作無法還原。`)) {
       setProjects(prev => prev.filter(p => p.id !== projectId));
-      updateLastAction(project.name, `[${project.name}] 刪除了案件`);
+      updateLastAction(project.name, `[${project.name}] 刪過了案件`);
     }
   };
 
@@ -279,21 +300,14 @@ const App: React.FC = () => {
     return wasAdded;
   };
 
-  /**
-   * 改進後的全域翻譯處理：採用序列處理避免率限制，並確保備註被翻譯。
-   */
   const handleTranslateAllProjects = async () => {
     const newProjects = [...projects];
     let successCount = 0;
-    
-    // 採用序列處理 (Sequential) 以穩定 API 請求並方便觀察進度
     for (let i = 0; i < newProjects.length; i++) {
         const p = newProjects[i];
-        // 僅翻譯有內容的項目
         if (p.description || p.remarks) {
             const translatedDesc = await translateProjectContent(p.description);
             const translatedRemarks = await translateProjectContent(p.remarks);
-            
             newProjects[i] = { 
               ...p, 
               description: translatedDesc || p.description, 
@@ -304,7 +318,6 @@ const App: React.FC = () => {
             successCount++;
         }
     }
-    
     setProjects(sortProjects(newProjects));
     updateLastAction('全域翻譯', `使用 AI 將 ${successCount} 件案件的詳細資訊翻譯為中越對照格式`);
   };
@@ -315,7 +328,7 @@ const App: React.FC = () => {
     return !!systemRules.rolePermissions?.[currentUser.role]?.allowedViews?.includes(viewId);
   };
 
-  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} allUsers={allUsers} />;
+  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} allUsers={allUsers} onRemoteSync={handleSyncFromRemote} />;
 
   const renderSidebarContent = () => {
     const isConnected = dirHandle && dirPermission === 'granted';
@@ -373,7 +386,7 @@ const App: React.FC = () => {
       <div className={`fixed inset-0 z-[100] md:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}><div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} /><aside className={`absolute left-0 top-0 bottom-0 w-64 bg-slate-900 text-white flex flex-col transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>{renderSidebarContent()}</aside></div>
       <aside className="hidden md:flex w-64 flex-col bg-slate-900 text-white flex-shrink-0">{renderSidebarContent()}</aside>
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shadow-sm z-20 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-slate-500 p-2"><MenuIcon className="w-6 h-6" /></button><div className="text-sm font-bold text-slate-700">{selectedProject ? selectedProject.name : '合家興工程日誌(手機版)'}</div><div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shadow-sm"><img src={LOGO_URL} alt="User" className="w-full h-full object-cover" /></div></header>
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shadow-sm z-20 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-slate-500 p-2"><MenuIcon className="w-6 h-6" /></button><div className="text-sm font-bold text-slate-700">{selectedProject ? selectedProject.name : '合家興管理系統'}</div><div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shadow-sm"><img src={LOGO_URL} alt="User" className="w-full h-full object-cover" /></div></header>
         <main className="flex-1 min-h-0 bg-[#f8fafc] pb-safe flex flex-col overflow-hidden">
           {view === 'update_log' ? (<AuditLogList logs={auditLogs} />) : 
            view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={(nl) => handleUpdateList(allUsers, nl, setAllUsers, '系統帳號')} auditLogs={auditLogs} onLogAction={(action, details) => updateLastAction('系統', details)} projects={projects} onRestoreData={restoreDataToState} systemRules={systemRules} onUpdateSystemRules={setSystemRules} />) : 
@@ -397,10 +410,10 @@ const App: React.FC = () => {
            view === 'production' ? (<GlobalProduction projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} />) :
            view === 'outsourcing' ? (<GlobalOutsourcing projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} subcontractors={subcontractors} />) :
            view === 'report_tracking' ? (<ReportTrackingView projects={projects} dailyDispatches={dailyDispatches} onBack={() => setView('engineering_hub')} onSelectProject={setSelectedProject} />) :
-           view === 'driving_time' ? (<div className="flex-1 overflow-y-auto custom-scrollbar"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><DrivingTimeEstimator projects={projects} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>) :
-           view === 'weekly_schedule' ? (<div className="flex-1 flex flex-col overflow-hidden"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><WeeklySchedule projects={projects} weeklySchedules={weeklySchedules} globalTeamConfigs={globalTeamConfigs} onUpdateWeeklySchedules={(nl) => handleUpdateList(weeklySchedules, nl, setWeeklySchedules, '排程', '週計畫', 'weekStartDate')} onOpenDrivingTime={() => setView('driving_time')} /></div>) :
-           view === 'daily_dispatch' ? (<div className="flex-1 flex flex-col overflow-hidden"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><DailyDispatch projects={projects} weeklySchedules={weeklySchedules} dailyDispatches={dailyDispatches} globalTeamConfigs={globalTeamConfigs} onUpdateDailyDispatches={(nl) => handleUpdateList(dailyDispatches, nl, setDailyDispatches, '派工', '當日內容', 'date')} onOpenDrivingTime={() => setView('driving_time')} /></div>) :
-           view === 'engineering_groups' ? (<div className="flex-1 overflow-y-auto custom-scrollbar"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><EngineeringGroups globalTeamConfigs={globalTeamConfigs} onUpdateGlobalTeamConfigs={(nl) => { setGlobalTeamConfigs(nl); updateLastAction('系統設定', '[小組設定] 修改了：工程小組預設配置'); }} /></div>) :
+           view === 'driving_time' ? (<div className="flex-1 overflow-y-auto custom-scrollbar"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><DrivingTimeEstimator projects={projects} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>) :
+           view === 'weekly_schedule' ? (<div className="flex-1 flex flex-col overflow-hidden"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><WeeklySchedule projects={projects} weeklySchedules={weeklySchedules} globalTeamConfigs={globalTeamConfigs} onUpdateWeeklySchedules={(nl) => handleUpdateList(weeklySchedules, nl, setWeeklySchedules, '排程', '週計畫', 'weekStartDate')} onOpenDrivingTime={() => setView('driving_time')} /></div>) :
+           view === 'daily_dispatch' ? (<div className="flex-1 flex flex-col overflow-hidden"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><DailyDispatch projects={projects} weeklySchedules={weeklySchedules} dailyDispatches={dailyDispatches} globalTeamConfigs={globalTeamConfigs} onUpdateDailyDispatches={(nl) => handleUpdateList(dailyDispatches, nl, setDailyDispatches, '派工', '當日內容', 'date')} onOpenDrivingTime={() => setView('driving_time')} /></div>) :
+           view === 'engineering_groups' ? (<div className="flex-1 overflow-y-auto custom-scrollbar"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><EngineeringGroups globalTeamConfigs={globalTeamConfigs} onUpdateGlobalTeamConfigs={(nl) => { setGlobalTeamConfigs(nl); updateLastAction('系統設定', '[小組設定] 修改了：工程小組預設配置'); }} /></div>) :
            view === 'equipment' ? (<EquipmentModule onNavigate={setView} allowedViews={currentUser.role === UserRole.ADMIN ? ['equipment_tools','equipment_assets','equipment_vehicles'] : (systemRules.rolePermissions?.[currentUser.role]?.allowedViews || [])} />) :
            view === 'equipment_tools' ? (<ToolManagement tools={tools} onUpdateTools={(nl) => handleUpdateList(tools, nl, setTools, '工具', '狀態借用人')} employees={employees} />) :
            view === 'equipment_assets' ? (<AssetManagement assets={assets} onUpdateAssets={(nl) => handleUpdateList(assets, nl, setAssets, '大型設備', '地點檢驗日')} />) :
