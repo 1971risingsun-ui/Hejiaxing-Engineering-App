@@ -152,6 +152,13 @@ const App: React.FC = () => {
         
         // 1. 自動安全合併 (時間戳優先)
         const autoMerged = mergeAppState(cachedData, remoteData);
+
+        // [Fix] 防呆保護：如果合併後使用者變空，就使用原本的預設名單
+        if (!autoMerged.users || !Array.isArray(autoMerged.users) || autoMerged.users.length === 0) {
+          console.warn('同步後使用者清單為空，已啟動保護機制，保留原名單。');
+          autoMerged.users = allUsers.length > 0 ? allUsers : (cachedData.users || []);
+        }
+
         restoreDataToState(autoMerged);
         await saveAppStateToIdb(autoMerged);
 
