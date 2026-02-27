@@ -342,6 +342,8 @@ const App: React.FC = () => {
   const isViewAllowed = (viewId: string) => {
     if (!currentUser) return false;
     if (currentUser.role === UserRole.ADMIN) return true;
+    // 強制移除現場人員 (WORKER) 對工作排程 (engineering_hub) 的權限
+    if (currentUser.role === UserRole.WORKER && viewId === 'engineering_hub') return false;
     return !!systemRules.rolePermissions?.[currentUser.role]?.allowedViews?.includes(viewId);
   };
 
@@ -404,7 +406,7 @@ const App: React.FC = () => {
         <main className="flex-1 min-h-0 bg-[#f8fafc] pb-safe flex flex-col overflow-hidden">
           {view === 'update_log' ? (<AuditLogList logs={auditLogs} />) : 
            view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={(nl) => handleUpdateList(allUsers, nl, setAllUsers, '系統帳號')} auditLogs={auditLogs} onLogAction={(action, details) => updateLastAction('系統', details)} projects={projects} onRestoreData={restoreDataToState} systemRules={systemRules} onUpdateSystemRules={setSystemRules} />) : 
-           view === 'report' ? (<div className="flex-1 overflow-y-auto custom-scrollbar"><GlobalWorkReport projects={projects} currentUser={currentUser!} onUpdateProject={handleUpdateProject} /></div>) : 
+           view === 'report' ? (<div className="flex-1 overflow-y-auto custom-scrollbar"><GlobalWorkReport projects={projects} currentUser={currentUser!} onUpdateProject={handleUpdateProject} systemRules={systemRules} /></div>) : 
            view === 'engineering_hub' ? (<div className="flex-1 overflow-y-auto custom-scrollbar p-6 animate-fade-in"><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 max-w-4xl mx-auto">{[
              { id: 'daily_dispatch', label: '明日工作排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
              { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Project, User, ProjectType, DailyReport, SitePhoto, ConstructionItem, CompletionReport } from '../types';
+import { Project, User, ProjectType, DailyReport, SitePhoto, ConstructionItem, CompletionReport, SystemRules } from '../types';
 import { ClipboardListIcon, BoxIcon, CalendarIcon, XIcon, ChevronRightIcon, PlusIcon, TrashIcon, CheckCircleIcon, SunIcon, CloudIcon, RainIcon, CameraIcon, LoaderIcon, XCircleIcon, FileTextIcon, DownloadIcon } from './Icons';
 import { processFile, downloadBlob } from '../utils/fileHelpers';
 
@@ -10,12 +10,14 @@ interface GlobalWorkReportProps {
   projects: Project[];
   currentUser: User;
   onUpdateProject: (updatedProject: Project) => void;
+  systemRules?: SystemRules;
 }
 
-const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUser, onUpdateProject }) => {
+const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUser, onUpdateProject, systemRules }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [currentViewMonth, setCurrentViewMonth] = useState(new Date()); 
   const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('sv-SE'));
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   const [manuallyAddedIds, setManuallyAddedIds] = useState<Record<string, string[]>>({});
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -38,6 +40,17 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
   const [isHalfDayChecked, setIsHalfDayChecked] = useState(false);
   const [isProcessingPhotos, setIsProcessingPhotos] = useState(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+  
+  const [newItem, setNewItem] = useState<Partial<ConstructionItem>>({ name: '', quantity: '0', unit: '式', location: '' });
+
+  // Refs for debounce logic
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const projectsRef = useRef(projects);
+  const formBufferRef = useRef(formBuffer);
+
+  // Sync refs
+  useEffect(() => { projectsRef.current = projects; }, [projects]);
+  useEffect(() => { formBufferRef.current = formBuffer; }, [formBuffer]);
 
   // 優化過濾邏輯：確保手動追加與自動偵測都能正確顯示
   const activeProjects = useMemo(() => {
@@ -53,13 +66,30 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
   }, [projects, selectedDate, manuallyAddedIds]);
 
   const mainActiveProject = useMemo(() => {
+      if (selectedProjectId) {
+          const p = activeProjects.find(ap => ap.id === selectedProjectId);
+          if (p) return p;
+      }
       const constProjects = activeProjects.filter(p => p.type === ProjectType.CONSTRUCTION);
       if (constProjects.length > 0) return constProjects[0];
       const modularProjects = activeProjects.filter(p => p.type === ProjectType.MODULAR_HOUSE);
       return modularProjects.length > 0 ? modularProjects[0] : null;
-  }, [activeProjects]);
+  }, [activeProjects, selectedProjectId]);
+
+  // 當 mainActiveProject 變更時，更新 selectedProjectId 以保持同步
+  useEffect(() => {
+      if (mainActiveProject && mainActiveProject.id !== selectedProjectId) {
+          setSelectedProjectId(mainActiveProject.id);
+      }
+  }, [mainActiveProject]);
 
   useEffect(() => {
+    // 切換專案或日期時，清除未完成的儲存排程，避免資料錯置
+    if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+    }
+
     if (mainActiveProject) {
         const report = (mainActiveProject.reports || []).find(r => r.date === selectedDate);
         const item = (mainActiveProject.constructionItems || []).find(i => i.date === selectedDate);
@@ -85,8 +115,16 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
     return dates;
   }, [projects]);
 
-  const saveToProject = (project: Project, updates: Partial<typeof formBuffer>) => {
-    const newData = { ...formBuffer, ...updates };
+  const saveToProject = (targetProjectId: string, updates: Partial<typeof formBuffer>) => {
+    // 使用 Ref 獲取最新數據
+    const currentProjects = projectsRef.current;
+    const currentForm = formBufferRef.current;
+    
+    // 從最新的 projects 列表中找到目標專案
+    const project = currentProjects.find(p => p.id === targetProjectId);
+    if (!project) return;
+
+    const newData = { ...currentForm, ...updates };
     const existingReport = (project.reports || []).find(r => r.date === selectedDate);
     
     const report = (project.reports || []).find(r => r.date === selectedDate);
@@ -115,10 +153,57 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
     });
   };
 
+  const handleAddItem = () => {
+    if (!mainActiveProject || !newItem.name) return;
+    const project = projectsRef.current.find(p => p.id === mainActiveProject.id);
+    if (!project) return;
+
+    const item: ConstructionItem = {
+        id: crypto.randomUUID(),
+        date: selectedDate,
+        name: newItem.name!,
+        quantity: String(newItem.quantity || '0'),
+        unit: newItem.unit || '式',
+        location: newItem.location || '',
+        worker: formBuffer.worker,
+        assistant: formBuffer.assistant,
+    };
+
+    onUpdateProject({
+        ...project,
+        constructionItems: [...(project.constructionItems || []), item]
+    });
+    setNewItem({ name: '', quantity: '0', unit: '式', location: '' });
+  };
+
+  const handleDeleteItem = (itemId: string) => {
+    if (!mainActiveProject) return;
+    const project = projectsRef.current.find(p => p.id === mainActiveProject.id);
+    if (!project) return;
+
+    onUpdateProject({
+        ...project,
+        constructionItems: (project.constructionItems || []).filter(i => i.id !== itemId)
+    });
+  };
+
   const handleFieldChange = (field: keyof typeof formBuffer, value: any) => {
     setFormBuffer(prev => ({ ...prev, [field]: value }));
-    if (mainActiveProject) {
-        saveToProject(mainActiveProject, { [field]: value });
+    
+    if (!mainActiveProject) return;
+    const targetProjectId = mainActiveProject.id;
+
+    // 對於文字輸入欄位使用 debounce
+    if (field === 'worker' || field === 'content' || field === 'assistant') {
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = setTimeout(() => {
+            // 確保儲存時專案 ID 仍一致，或者是針對特定 ID 儲存
+            // 這裡我們直接傳遞 targetProjectId 給 saveToProject
+            saveToProject(targetProjectId, { [field]: value });
+        }, 800);
+    } else {
+        // 其他欄位即時儲存
+        saveToProject(targetProjectId, { [field]: value });
     }
   };
 
@@ -319,7 +404,7 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
     }
 
     // 全部案場處理完畢，下載檔案
-    downloadBlob(pdf.output('blob'), `合家興工作彙整_${selectedDate}.pdf`);
+    downloadBlob(pdf.output('blob'), `${selectedDate}_${currentUser.name}_合家興工作彙整.pdf`);
     setIsGeneratingPDF(false);
   };
 
@@ -348,9 +433,13 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                   {items.map(p => {
                       const report = (p.reports || []).find(r => r.date === selectedDate);
                       return (
-                          <div key={p.id} className="bg-white border border-slate-100 rounded-xl p-3 flex items-center justify-between shadow-sm group">
-                              <span className="font-bold text-slate-800 text-sm">{p.name}</span>
-                              <div className="flex items-center gap-3">
+                          <div 
+                            key={p.id} 
+                            onClick={() => setSelectedProjectId(p.id)}
+                            className={`border rounded-xl p-3 flex items-center justify-between shadow-sm group cursor-pointer transition-all ${selectedProjectId === p.id ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-white border-slate-100 hover:border-blue-300'}`}
+                          >
+                              <span className={`font-bold text-sm ${selectedProjectId === p.id ? 'text-blue-700' : 'text-slate-800'}`}>{p.name}</span>
+                              <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
                                   <select 
                                     value={report?.content?.startsWith('[已完成]') ? '已完成' : '未完成'}
                                     onChange={(e) => {
@@ -520,6 +609,47 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                                 <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">施工備註 (Ghi chú)</label>
                                 <textarea value={formBuffer.content} onChange={(e) => handleFieldChange('content', e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm h-24 resize-none outline-none shadow-inner" placeholder="輸入今日重點..." />
                             </div>
+                        </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-slate-100">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">施工項目 (Hạng mục thi công)</label>
+                        <div className="space-y-2 mb-4">
+                            {(mainActiveProject.constructionItems || []).filter(i => i.date === selectedDate).map(item => (
+                                <div key={item.id} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                    <span className="flex-1 font-bold text-sm text-slate-700">{item.name}</span>
+                                    <span className="w-16 text-center text-sm bg-white px-2 py-1 rounded border border-slate-200">{item.quantity}</span>
+                                    <span className="w-12 text-center text-sm text-slate-500">{item.unit}</span>
+                                    <span className="w-24 text-sm text-slate-500 truncate">{item.location}</span>
+                                    <button onClick={() => handleDeleteItem(item.id)} className="text-slate-400 hover:text-red-500 p-1"><TrashIcon className="w-4 h-4" /></button>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex gap-2 items-center bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+                            <input 
+                                type="text" 
+                                placeholder="項目名稱" 
+                                value={newItem.name} 
+                                onChange={e => setNewItem(prev => ({ ...prev, name: e.target.value }))}
+                                className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500"
+                            />
+                            <input 
+                                type="number" 
+                                placeholder="數量" 
+                                value={newItem.quantity || ''} 
+                                onChange={e => setNewItem(prev => ({ ...prev, quantity: e.target.value }))}
+                                className="w-20 px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500"
+                            />
+                            <input 
+                                type="text" 
+                                placeholder="單位" 
+                                value={newItem.unit} 
+                                onChange={e => setNewItem(prev => ({ ...prev, unit: e.target.value }))}
+                                className="w-16 px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500"
+                            />
+                            <button onClick={handleAddItem} disabled={!newItem.name} className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                                <PlusIcon className="w-5 h-5" />
+                            </button>
                         </div>
                     </div>
 

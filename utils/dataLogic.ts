@@ -14,7 +14,9 @@ export const sortProjects = (list: Project[]) => {
   return [...list].sort((a, b) => {
     const dateA = a.appointmentDate || a.reportDate || '9999-12-31';
     const dateB = b.appointmentDate || b.reportDate || '9999-12-31';
-    return String(dateA).localeCompare(String(dateB));
+    const dateCompare = String(dateA).localeCompare(String(dateB));
+    if (dateCompare !== 0) return dateCompare;
+    return a.id.localeCompare(b.id);
   });
 };
 

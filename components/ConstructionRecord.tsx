@@ -216,9 +216,28 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
     }
   };
 
-  const updateReportData = (updates: Partial<{ weather: 'sunny' | 'cloudy' | 'rainy', content: string, photos: SitePhoto[] }>) => {
-      if (!currentReportId) return;
+  const ensureReport = (currentReports: DailyReport[]) => {
+    if (currentReportId) return { id: currentReportId, reports: currentReports };
+    
+    const newId = crypto.randomUUID();
+    const newReport: DailyReport = {
+      id: newId,
+      reportId: newId,
+      date: constructionDate,
+      weather: reportWeather,
+      content: reportContent,
+      reporter: currentUser.name,
+      timestamp: Date.now(),
+      photos: [],
+      worker: dailyWorker,
+      assistant: dailyAssistant
+    };
+    
+    setCurrentReportId(newId);
+    return { id: newId, reports: [...currentReports, newReport] };
+  };
 
+  const updateReportData = (updates: Partial<{ weather: 'sunny' | 'cloudy' | 'rainy', content: string, photos: SitePhoto[] }>) => {
       const newWeather = updates.weather || reportWeather;
       const newContent = updates.content !== undefined ? updates.content : reportContent;
       const newPhotos = updates.photos || reportPhotos;
@@ -227,12 +246,14 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
       if (updates.content !== undefined) setReportContent(updates.content);
       if (updates.photos) setReportPhotos(updates.photos);
 
+      const { id: targetId, reports: baseReports } = ensureReport(project.reports || []);
+
       const existingPhotoIds = new Set(project.photos.map(p => p.id));
       const photosToAdd = newPhotos.filter(p => !existingPhotoIds.has(p.id));
       const updatedGlobalPhotos = [...project.photos, ...photosToAdd];
 
-      const updatedReports = (project.reports || []).map(r => {
-        if (r.id === currentReportId) {
+      const updatedReports = baseReports.map(r => {
+        if (r.id === targetId) {
           return {
             ...r,
             weather: newWeather,
@@ -274,10 +295,11 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const handleAddItem = () => {
-    if (!currentReportId) return;
+    const { id: targetId, reports: updatedReports } = ensureReport(project.reports || []);
+    
     const newItem: ConstructionItem = {
       id: crypto.randomUUID(),
-      reportId: currentReportId,
+      reportId: targetId,
       name: currentStandardItems[0].name,
       unit: currentStandardItems[0].unit,
       quantity: '',
@@ -286,15 +308,16 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
       assistant: dailyAssistant,
       date: constructionDate
     };
-    onUpdateProject({ ...project, constructionItems: [...(project.constructionItems || []), newItem] });
+    onUpdateProject({ ...project, reports: updatedReports, constructionItems: [...(project.constructionItems || []), newItem] });
   };
 
   const handleAddCustomItem = () => {
-    if (!currentReportId) return;
     if (!customItem.name) return;
+    const { id: targetId, reports: updatedReports } = ensureReport(project.reports || []);
+
     const newItem: ConstructionItem = {
       id: crypto.randomUUID(),
-      reportId: currentReportId,
+      reportId: targetId,
       name: customItem.name,
       quantity: customItem.quantity,
       unit: customItem.unit,
@@ -303,7 +326,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
       assistant: dailyAssistant,
       date: constructionDate
     };
-    onUpdateProject({ ...project, constructionItems: [...(project.constructionItems || []), newItem] });
+    onUpdateProject({ ...project, reports: updatedReports, constructionItems: [...(project.constructionItems || []), newItem] });
     setCustomItem({ name: '', quantity: '', unit: '', location: '' });
   };
 
@@ -327,17 +350,17 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const handleHeaderWorkerChange = (val: string) => {
-    if (!currentReportId) return;
     setDailyWorker(val);
+    const { id: targetId, reports: baseReports } = ensureReport(project.reports || []);
     
     // Update report metadata
-    const updatedReports = (project.reports || []).map(r => 
-      r.id === currentReportId ? { ...r, worker: val } : r
+    const updatedReports = baseReports.map(r => 
+      r.id === targetId ? { ...r, worker: val } : r
     );
 
     // Update items linked to this report
     const updatedItems = (project.constructionItems || []).map(item => 
-      item.reportId === currentReportId ? { ...item, worker: val } : item
+      item.reportId === targetId ? { ...item, worker: val } : item
     );
     
     onUpdateProject({ ...project, reports: updatedReports, constructionItems: updatedItems });
@@ -373,17 +396,17 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const updateAssistantInItems = (joinedValue: string) => {
-    if (!currentReportId) return;
     setDailyAssistant(joinedValue);
+    const { id: targetId, reports: baseReports } = ensureReport(project.reports || []);
     
     // Update report metadata
-    const updatedReports = (project.reports || []).map(r => 
-      r.id === currentReportId ? { ...r, assistant: joinedValue } : r
+    const updatedReports = baseReports.map(r => 
+      r.id === targetId ? { ...r, assistant: joinedValue } : r
     );
 
     // Update items linked to this report
     const updatedItems = (project.constructionItems || []).map(item => 
-      item.reportId === currentReportId ? { ...item, assistant: joinedValue } : item
+      item.reportId === targetId ? { ...item, assistant: joinedValue } : item
     );
     
     onUpdateProject({ ...project, reports: updatedReports, constructionItems: updatedItems });
