@@ -119,9 +119,21 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   const canEdit = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.ENGINEERING || currentUser.role === UserRole.WORKER;
   const currentStandardItems = isMaintenance ? MAINTENANCE_CONSTRUCTION_ITEMS : STANDARD_CONSTRUCTION_ITEMS;
 
+  // Temporary state for holding changes before submission
+  const [tempReportData, setTempReportData] = useState<{
+    items: ConstructionItem[];
+    report: DailyReport | null;
+    signature: ConstructionSignature | null;
+  }>({ items: [], report: null, signature: null });
+
   // Initialize or switch report context
   useEffect(() => {
     if (constructionMode === 'entry' && currentReportId) {
+      // Check if we already have this report in temp state (e.g. just created it)
+      if (tempReportData.report && tempReportData.report.id === currentReportId) {
+          return;
+      }
+
       // Load specific report data
       const items = (project.constructionItems || []).filter(i => i.reportId === currentReportId);
       const report = (project.reports || []).find(r => r.id === currentReportId);
@@ -135,6 +147,13 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         setReportContent(report.content);
         const photos = (report.photos || []).map(id => project.photos.find(p => p.id === id)).filter((p): p is SitePhoto => !!p);
         setReportPhotos(photos);
+        
+        // Initialize temp data
+        setTempReportData({
+            items: JSON.parse(JSON.stringify(items)),
+            report: JSON.parse(JSON.stringify(report)),
+            signature: signature ? JSON.parse(JSON.stringify(signature)) : null
+        });
       } else {
         // Fallback or new report state (should ideally not happen if ID exists)
         setDailyWorker('');
@@ -142,6 +161,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         setReportWeather('sunny');
         setReportContent('');
         setReportPhotos([]);
+        setTempReportData({ items: [], report: null, signature: null });
       }
 
       if (items.length > 0) {
@@ -165,38 +185,40 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
        setReportWeather('sunny');
        setReportContent('');
        setReportPhotos([]);
+       
+       // Initialize empty temp data for new report
+       const newId = crypto.randomUUID();
+       const today = new Date().toISOString().split('T')[0];
+       setConstructionDate(today);
+       setTempReportData({
+           items: [],
+           report: {
+               id: newId,
+               reportId: newId,
+               date: today,
+               weather: 'sunny',
+               content: '',
+               reporter: currentUser.name,
+               timestamp: Date.now(),
+               photos: [],
+               worker: '',
+               assistant: ''
+           },
+           signature: null
+       });
+       setCurrentReportId(newId); // Set ID immediately for internal reference
     }
   }, [currentReportId, constructionMode, project]);
 
   const createNewReport = () => {
-    const newId = crypto.randomUUID();
-    const today = new Date().toISOString().split('T')[0];
-    
-    const newReport: DailyReport = {
-      id: newId,
-      reportId: newId, // Self-reference for consistency
-      date: today,
-      weather: 'sunny',
-      content: '',
-      reporter: currentUser.name,
-      timestamp: Date.now(),
-      photos: [],
-      worker: '',
-      assistant: ''
-    };
-
-    onUpdateProject({
-      ...project,
-      reports: [...(project.reports || []), newReport]
-    });
-    
-    setConstructionDate(today);
-    setCurrentReportId(newId);
+    // Just switch mode, initialization happens in useEffect
+    setCurrentReportId(null);
     setConstructionMode('entry');
     setIsEditing(true);
   };
 
-  const deleteReport = (reportId: string) => {
+  const deleteReport = (e: React.MouseEvent, reportId: string) => {
+    e.stopPropagation();
     if (!confirm('確定要刪除此份日報嗎？這將刪除相關的所有施工項目與簽名。')) return;
     
     const updatedReports = (project.reports || []).filter(r => r.id !== reportId);
@@ -216,25 +238,12 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
     }
   };
 
-  const ensureReport = (currentReports: DailyReport[]) => {
-    if (currentReportId) return { id: currentReportId, reports: currentReports };
-    
-    const newId = crypto.randomUUID();
-    const newReport: DailyReport = {
-      id: newId,
-      reportId: newId,
-      date: constructionDate,
-      weather: reportWeather,
-      content: reportContent,
-      reporter: currentUser.name,
-      timestamp: Date.now(),
-      photos: [],
-      worker: dailyWorker,
-      assistant: dailyAssistant
-    };
-    
-    setCurrentReportId(newId);
-    return { id: newId, reports: [...currentReports, newReport] };
+  // Helper to update temp data
+  const updateTempReport = (updates: Partial<DailyReport>) => {
+      setTempReportData(prev => ({
+          ...prev,
+          report: prev.report ? { ...prev.report, ...updates } : null
+      }));
   };
 
   const updateReportData = (updates: Partial<{ weather: 'sunny' | 'cloudy' | 'rainy', content: string, photos: SitePhoto[] }>) => {
@@ -246,29 +255,11 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
       if (updates.content !== undefined) setReportContent(updates.content);
       if (updates.photos) setReportPhotos(updates.photos);
 
-      const { id: targetId, reports: baseReports } = ensureReport(project.reports || []);
-
-      const existingPhotoIds = new Set(project.photos.map(p => p.id));
-      const photosToAdd = newPhotos.filter(p => !existingPhotoIds.has(p.id));
-      const updatedGlobalPhotos = [...project.photos, ...photosToAdd];
-
-      const updatedReports = baseReports.map(r => {
-        if (r.id === targetId) {
-          return {
-            ...r,
-            weather: newWeather,
-            content: newContent,
-            photos: newPhotos.map(p => p.id),
-            worker: dailyWorker,
-            assistant: dailyAssistant,
-            lastModifiedAt: Date.now(),
-            lastModifiedBy: currentUser.name
-          };
-        }
-        return r;
+      updateTempReport({
+          weather: newWeather,
+          content: newContent,
+          photos: newPhotos.map(p => p.id)
       });
-
-      onUpdateProject({ ...project, reports: updatedReports, photos: updatedGlobalPhotos });
   };
 
   const handleReportPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -284,22 +275,38 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
               alert("照片處理失敗");
           }
       }
-      updateReportData({ photos: [...reportPhotos, ...newPhotos] });
+      // Add photos to local state immediately for preview
+      const updatedPhotos = [...reportPhotos, ...newPhotos];
+      setReportPhotos(updatedPhotos);
+      updateTempReport({ photos: updatedPhotos.map(p => p.id) });
+      
+      // We need to store the actual photo objects in project.photos eventually
+      // For now, we'll store them in a temp array or just append to project.photos on submit
+      // To simplify, we can append to project.photos immediately as they are "uploaded"
+      // but only link them to the report on submit.
+      // However, user request is "don't save report without submit".
+      // Uploading photos usually implies saving the file.
+      // Let's append to project.photos immediately to ensure URLs are valid, 
+      // but the report linkage happens only on submit.
+      onUpdateProject({ ...project, photos: [...project.photos, ...newPhotos] });
+
       setIsProcessingPhotos(false);
       e.target.value = '';
     }
   };
 
   const removeReportPhoto = (id: string) => {
-    updateReportData({ photos: reportPhotos.filter(p => p.id !== id) });
+    const updatedPhotos = reportPhotos.filter(p => p.id !== id);
+    setReportPhotos(updatedPhotos);
+    updateTempReport({ photos: updatedPhotos.map(p => p.id) });
   };
 
   const handleAddItem = () => {
-    const { id: targetId, reports: updatedReports } = ensureReport(project.reports || []);
+    if (!tempReportData.report) return;
     
     const newItem: ConstructionItem = {
       id: crypto.randomUUID(),
-      reportId: targetId,
+      reportId: tempReportData.report.id,
       name: currentStandardItems[0].name,
       unit: currentStandardItems[0].unit,
       quantity: '',
@@ -308,16 +315,20 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
       assistant: dailyAssistant,
       date: constructionDate
     };
-    onUpdateProject({ ...project, reports: updatedReports, constructionItems: [...(project.constructionItems || []), newItem] });
+    
+    setTempReportData(prev => ({
+        ...prev,
+        items: [...prev.items, newItem]
+    }));
   };
 
   const handleAddCustomItem = () => {
+    if (!tempReportData.report) return;
     if (!customItem.name) return;
-    const { id: targetId, reports: updatedReports } = ensureReport(project.reports || []);
 
     const newItem: ConstructionItem = {
       id: crypto.randomUUID(),
-      reportId: targetId,
+      reportId: tempReportData.report.id,
       name: customItem.name,
       quantity: customItem.quantity,
       unit: customItem.unit,
@@ -326,44 +337,47 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
       assistant: dailyAssistant,
       date: constructionDate
     };
-    onUpdateProject({ ...project, reports: updatedReports, constructionItems: [...(project.constructionItems || []), newItem] });
+    
+    setTempReportData(prev => ({
+        ...prev,
+        items: [...prev.items, newItem]
+    }));
     setCustomItem({ name: '', quantity: '', unit: '', location: '' });
   };
 
   const deleteConstructionItem = (id: string) => {
-    onUpdateProject({ ...project, constructionItems: (project.constructionItems || []).filter(item => item.id !== id) });
+    setTempReportData(prev => ({
+        ...prev,
+        items: prev.items.filter(item => item.id !== id)
+    }));
   };
 
   const updateConstructionItem = (id: string, field: keyof ConstructionItem, value: any) => {
-    const updatedItems = (project.constructionItems || []).map(item => {
-      if (item.id === id) {
-        const updatedItem = { ...item, [field]: value };
-        if (field === 'name') {
-           const std = currentStandardItems.find(s => s.name === value);
-           if (std) updatedItem.unit = std.unit;
-        }
-        return updatedItem;
-      }
-      return item;
-    });
-    onUpdateProject({ ...project, constructionItems: updatedItems });
+    setTempReportData(prev => ({
+        ...prev,
+        items: prev.items.map(item => {
+            if (item.id === id) {
+                const updatedItem = { ...item, [field]: value };
+                if (field === 'name') {
+                   const std = currentStandardItems.find(s => s.name === value);
+                   if (std) updatedItem.unit = std.unit;
+                }
+                return updatedItem;
+            }
+            return item;
+        })
+    }));
   };
 
   const handleHeaderWorkerChange = (val: string) => {
     setDailyWorker(val);
-    const { id: targetId, reports: baseReports } = ensureReport(project.reports || []);
-    
-    // Update report metadata
-    const updatedReports = baseReports.map(r => 
-      r.id === targetId ? { ...r, worker: val } : r
-    );
-
-    // Update items linked to this report
-    const updatedItems = (project.constructionItems || []).map(item => 
-      item.reportId === targetId ? { ...item, worker: val } : item
-    );
-    
-    onUpdateProject({ ...project, reports: updatedReports, constructionItems: updatedItems });
+    if (tempReportData.report) {
+        setTempReportData(prev => ({
+            ...prev,
+            report: prev.report ? { ...prev.report, worker: val } : null,
+            items: prev.items.map(i => ({ ...i, worker: val }))
+        }));
+    }
   };
 
   const getAssistantList = () => {
@@ -397,19 +411,13 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
 
   const updateAssistantInItems = (joinedValue: string) => {
     setDailyAssistant(joinedValue);
-    const { id: targetId, reports: baseReports } = ensureReport(project.reports || []);
-    
-    // Update report metadata
-    const updatedReports = baseReports.map(r => 
-      r.id === targetId ? { ...r, assistant: joinedValue } : r
-    );
-
-    // Update items linked to this report
-    const updatedItems = (project.constructionItems || []).map(item => 
-      item.reportId === targetId ? { ...item, assistant: joinedValue } : item
-    );
-    
-    onUpdateProject({ ...project, reports: updatedReports, constructionItems: updatedItems });
+    if (tempReportData.report) {
+        setTempReportData(prev => ({
+            ...prev,
+            report: prev.report ? { ...prev.report, assistant: joinedValue } : null,
+            items: prev.items.map(i => ({ ...i, assistant: joinedValue }))
+        }));
+    }
   };
 
   const handleAssistantInputKeyDown = (e: React.KeyboardEvent) => {
@@ -447,10 +455,14 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
   const saveSignature = () => {
     const canvas = canvasRef.current; if (!canvas) return;
-    const newSig: ConstructionSignature = { id: crypto.randomUUID(), date: constructionDate, url: canvas.toDataURL('image/jpeg', 0.8), timestamp: Date.now() };
-    const otherSignatures = (project.constructionSignatures || []).filter(s => s.date !== constructionDate);
-    onUpdateProject({ ...project, constructionSignatures: [...otherSignatures, newSig] });
-    setSignatureData(newSig); setIsSigning(false);
+    const newSig: ConstructionSignature = { id: crypto.randomUUID(), reportId: tempReportData.report?.id || '', date: constructionDate, url: canvas.toDataURL('image/jpeg', 0.8), timestamp: Date.now() };
+    
+    setTempReportData(prev => ({
+        ...prev,
+        signature: newSig
+    }));
+    setSignatureData(newSig); 
+    setIsSigning(false);
   };
 
   useEffect(() => {
@@ -461,7 +473,39 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
     }
   }, [isSigning]);
 
-  const handleSubmitLog = () => setIsEditing(false);
+  const handleSubmitLog = () => {
+      if (!tempReportData.report) return;
+
+      // 1. Update Reports
+      const otherReports = (project.reports || []).filter(r => r.id !== tempReportData.report!.id);
+      const updatedReports = [...otherReports, {
+          ...tempReportData.report,
+          date: constructionDate, // Ensure date is synced
+          lastModifiedAt: Date.now(),
+          lastModifiedBy: currentUser.name
+      }];
+
+      // 2. Update Items
+      const otherItems = (project.constructionItems || []).filter(i => i.reportId !== tempReportData.report!.id);
+      const updatedItems = [...otherItems, ...tempReportData.items.map(i => ({...i, date: constructionDate}))];
+
+      // 3. Update Signatures
+      let updatedSignatures = project.constructionSignatures || [];
+      if (tempReportData.signature) {
+          const otherSignatures = updatedSignatures.filter(s => s.reportId !== tempReportData.report!.id);
+          updatedSignatures = [...otherSignatures, { ...tempReportData.signature, date: constructionDate }];
+      }
+
+      onUpdateProject({
+          ...project,
+          reports: updatedReports,
+          constructionItems: updatedItems,
+          constructionSignatures: updatedSignatures
+      });
+
+      setIsEditing(false);
+      alert("提交成功 (Đã gửi thành công)");
+  };
 
   const generateReportPDF = async (date: string, reportId?: string) => {
     if (typeof html2canvas === 'undefined' || typeof jspdf === 'undefined') {
@@ -944,7 +988,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
                   <div className="flex justify-end gap-2">
                     <button onClick={(e) => { e.stopPropagation(); generateReportExcel(report.date, report.id); }} className="p-1.5 text-slate-400 hover:text-emerald-600 rounded" title="匯出 Excel"><DownloadIcon className="w-4 h-4" /></button>
                     <button onClick={(e) => { e.stopPropagation(); generateReportPDF(report.date, report.id); }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="匯出 PDF"><FileTextIcon className="w-4 h-4" /></button>
-                    {canEdit && <button onClick={(e) => { e.stopPropagation(); deleteReport(report.id); }} className="p-1.5 text-slate-400 hover:text-red-600 rounded" title="刪除日報"><TrashIcon className="w-4 h-4" /></button>}
+                    {canEdit && <button onClick={(e) => deleteReport(e, report.id)} className="p-1.5 text-slate-400 hover:text-red-600 rounded" title="刪除日報"><TrashIcon className="w-4 h-4" /></button>}
                   </div>
                 </td>
               </tr>
@@ -956,8 +1000,8 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const renderConstructionEntry = () => {
-    // Filter items by currentReportId
-    const visibleItems = (project.constructionItems || []).filter(item => item.reportId === currentReportId);
+    // Filter items by currentReportId from temp data if editing, otherwise from project
+    const visibleItems = isEditing ? tempReportData.items : (project.constructionItems || []).filter(item => item.reportId === currentReportId);
     const currentAssistants = getAssistantList();
 
     return (
@@ -969,6 +1013,15 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
                  <h3 className="font-bold text-lg text-slate-800">{isMaintenance ? '施工報告 (Báo cáo thi công)' : '編輯紀錄 (Sửa nhật ký)'}</h3>
               </div>
             <div className="flex items-center gap-1">
+                {isMaintenance && (
+                    <button 
+                        onClick={() => { setConstructionMode('overview'); setCurrentReportId(null); }} 
+                        className="p-2 text-slate-500 hover:text-blue-600 rounded-full" 
+                        title="總覽 (Tổng quan)"
+                    >
+                        <ClipboardListIcon className="w-5 h-5" />
+                    </button>
+                )}
                 <button onClick={() => generateReportExcel(constructionDate, currentReportId || undefined)} disabled={isGeneratingExcel} className="p-2 text-slate-500 hover:text-emerald-600 rounded-full" title="匯出 Excel">{isGeneratingExcel ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <DownloadIcon className="w-5 h-5" />}</button>
                 <button onClick={() => generateReportPDF(constructionDate, currentReportId || undefined)} disabled={isGeneratingPDF} className="p-2 text-slate-500 hover:text-blue-600 rounded-full" title="匯出 PDF">{isGeneratingPDF ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <FileTextIcon className="w-5 h-5" />}</button>
                 {signatureData && <div className="text-green-600 flex items-center gap-1 text-xs font-bold border border-green-200 bg-green-50 px-2 py-1 rounded ml-1"><StampIcon className="w-3.5 h-3.5" /><span>已簽證</span></div>}
@@ -979,11 +1032,13 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
             <input type="date" value={constructionDate} disabled={!isEditing || !canEdit} onChange={(e) => {
                 const newDate = e.target.value;
                 setConstructionDate(newDate);
-                if (currentReportId) {
-                    const updatedReports = (project.reports || []).map(r => r.id === currentReportId ? { ...r, date: newDate } : r);
-                    const updatedItems = (project.constructionItems || []).map(i => i.reportId === currentReportId ? { ...i, date: newDate } : i);
-                    const updatedSignatures = (project.constructionSignatures || []).map(s => s.reportId === currentReportId ? { ...s, date: newDate } : s);
-                    onUpdateProject({ ...project, reports: updatedReports, constructionItems: updatedItems, constructionSignatures: updatedSignatures });
+                if (tempReportData.report) {
+                    updateTempReport({ date: newDate });
+                    setTempReportData(prev => ({
+                        ...prev,
+                        items: prev.items.map(i => ({ ...i, date: newDate })),
+                        signature: prev.signature ? { ...prev.signature, date: newDate } : null
+                    }));
                 }
             }} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white font-bold" />
           </div>
