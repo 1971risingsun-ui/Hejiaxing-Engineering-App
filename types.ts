@@ -81,6 +81,7 @@ export interface Attachment {
 
 export interface DailyReport {
   id: string;
+  reportId?: string; // New field for grouping multiple reports per day
   date: string;
   weather: 'sunny' | 'cloudy' | 'rainy';
   content: string;
@@ -95,6 +96,7 @@ export interface DailyReport {
 
 export interface ConstructionItem {
   id: string;
+  reportId?: string; // New field for grouping
   name: string;
   quantity: string;
   unit: string;
@@ -108,6 +110,7 @@ export interface ConstructionItem {
 
 export interface ConstructionSignature {
   id: string;
+  reportId?: string; // New field for grouping
   date: string;
   url: string;
   timestamp: number;
@@ -288,6 +291,7 @@ export interface Project {
   completionReports: CompletionReport[];
   planningReports: CompletionReport[];
   fenceMaterialSheets?: Record<string, FenceMaterialSheet>; 
+  isFavorite?: boolean;
   lastModifiedBy?: string;
   lastModifiedAt?: number;
 }

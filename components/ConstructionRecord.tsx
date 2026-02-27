@@ -92,6 +92,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   );
   
   const [constructionDate, setConstructionDate] = useState(initialDate || new Date().toISOString().split('T')[0]);
+  const [currentReportId, setCurrentReportId] = useState<string | null>(null); // New state for tracking active report
   const [dailyWorker, setDailyWorker] = useState('');
   const [dailyAssistant, setDailyAssistant] = useState(''); 
   const [pendingAssistant, setPendingAssistant] = useState(''); 
@@ -118,41 +119,106 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   const canEdit = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.ENGINEERING || currentUser.role === UserRole.WORKER;
   const currentStandardItems = isMaintenance ? MAINTENANCE_CONSTRUCTION_ITEMS : STANDARD_CONSTRUCTION_ITEMS;
 
+  // Initialize or switch report context
   useEffect(() => {
-    const items = (project.constructionItems || []).filter(i => i.date === constructionDate);
-    if (items.length > 0) {
-      setDailyWorker(items[0].worker || '');
-      setDailyAssistant(items[0].assistant || '');
-      
-      const currentResources: Record<string, string> = {};
-      RESOURCE_ITEMS.forEach(res => {
-          const found = items.find(i => i.name === res.name);
-          if (found) currentResources[res.name] = found.quantity;
-      });
-      setResourceInputs(currentResources);
-    } else {
-      setDailyWorker('');
-      setDailyAssistant('');
-      setResourceInputs({});
-    }
+    if (constructionMode === 'entry' && currentReportId) {
+      // Load specific report data
+      const items = (project.constructionItems || []).filter(i => i.reportId === currentReportId);
+      const report = (project.reports || []).find(r => r.id === currentReportId);
+      const signature = (project.constructionSignatures || []).find(s => s.reportId === currentReportId);
 
-    const existingSig = (project.constructionSignatures || []).find(s => s.date === constructionDate);
-    setSignatureData(existingSig || null);
-
-    const existingReport = (project.reports || []).find(r => r.date === constructionDate);
-    if (existingReport) {
-        setReportWeather(existingReport.weather);
-        setReportContent(existingReport.content);
-        const photos = (existingReport.photos || []).map(id => project.photos.find(p => p.id === id)).filter((p): p is SitePhoto => !!p);
+      if (report) {
+        setConstructionDate(report.date);
+        setDailyWorker(report.worker || '');
+        setDailyAssistant(report.assistant || '');
+        setReportWeather(report.weather);
+        setReportContent(report.content);
+        const photos = (report.photos || []).map(id => project.photos.find(p => p.id === id)).filter((p): p is SitePhoto => !!p);
         setReportPhotos(photos);
-    } else {
+      } else {
+        // Fallback or new report state (should ideally not happen if ID exists)
+        setDailyWorker('');
+        setDailyAssistant('');
         setReportWeather('sunny');
         setReportContent('');
         setReportPhotos([]);
+      }
+
+      if (items.length > 0) {
+        const currentResources: Record<string, string> = {};
+        RESOURCE_ITEMS.forEach(res => {
+            const found = items.find(i => i.name === res.name);
+            if (found) currentResources[res.name] = found.quantity;
+        });
+        setResourceInputs(currentResources);
+      } else {
+        setResourceInputs({});
+      }
+
+      setSignatureData(signature || null);
+    } else if (constructionMode === 'entry' && !currentReportId) {
+       // Creating new report mode
+       setDailyWorker('');
+       setDailyAssistant('');
+       setResourceInputs({});
+       setSignatureData(null);
+       setReportWeather('sunny');
+       setReportContent('');
+       setReportPhotos([]);
     }
-  }, [constructionDate, project.constructionItems, project.constructionSignatures, project.reports, project.photos]);
+  }, [currentReportId, constructionMode, project]);
+
+  const createNewReport = () => {
+    const newId = crypto.randomUUID();
+    const today = new Date().toISOString().split('T')[0];
+    
+    const newReport: DailyReport = {
+      id: newId,
+      reportId: newId, // Self-reference for consistency
+      date: today,
+      weather: 'sunny',
+      content: '',
+      reporter: currentUser.name,
+      timestamp: Date.now(),
+      photos: [],
+      worker: '',
+      assistant: ''
+    };
+
+    onUpdateProject({
+      ...project,
+      reports: [...(project.reports || []), newReport]
+    });
+    
+    setConstructionDate(today);
+    setCurrentReportId(newId);
+    setConstructionMode('entry');
+    setIsEditing(true);
+  };
+
+  const deleteReport = (reportId: string) => {
+    if (!confirm('確定要刪除此份日報嗎？這將刪除相關的所有施工項目與簽名。')) return;
+    
+    const updatedReports = (project.reports || []).filter(r => r.id !== reportId);
+    const updatedItems = (project.constructionItems || []).filter(i => i.reportId !== reportId);
+    const updatedSignatures = (project.constructionSignatures || []).filter(s => s.reportId !== reportId);
+    
+    onUpdateProject({
+      ...project,
+      reports: updatedReports,
+      constructionItems: updatedItems,
+      constructionSignatures: updatedSignatures
+    });
+    
+    if (currentReportId === reportId) {
+      setConstructionMode('overview');
+      setCurrentReportId(null);
+    }
+  };
 
   const updateReportData = (updates: Partial<{ weather: 'sunny' | 'cloudy' | 'rainy', content: string, photos: SitePhoto[] }>) => {
+      if (!currentReportId) return;
+
       const newWeather = updates.weather || reportWeather;
       const newContent = updates.content !== undefined ? updates.content : reportContent;
       const newPhotos = updates.photos || reportPhotos;
@@ -161,27 +227,27 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
       if (updates.content !== undefined) setReportContent(updates.content);
       if (updates.photos) setReportPhotos(updates.photos);
 
-      const otherReports = (project.reports || []).filter(r => r.date !== constructionDate);
       const existingPhotoIds = new Set(project.photos.map(p => p.id));
       const photosToAdd = newPhotos.filter(p => !existingPhotoIds.has(p.id));
       const updatedGlobalPhotos = [...project.photos, ...photosToAdd];
 
-      const reportPayload: DailyReport = {
-          id: (project.reports || []).find(r => r.date === constructionDate)?.id || crypto.randomUUID(),
-          date: constructionDate,
-          weather: newWeather,
-          content: newContent,
-          reporter: currentUser.name,
-          timestamp: Date.now(),
-          photos: newPhotos.map(p => p.id),
-          worker: dailyWorker,
-          assistant: dailyAssistant
-      };
+      const updatedReports = (project.reports || []).map(r => {
+        if (r.id === currentReportId) {
+          return {
+            ...r,
+            weather: newWeather,
+            content: newContent,
+            photos: newPhotos.map(p => p.id),
+            worker: dailyWorker,
+            assistant: dailyAssistant,
+            lastModifiedAt: Date.now(),
+            lastModifiedBy: currentUser.name
+          };
+        }
+        return r;
+      });
 
-      const shouldSave = newContent || newPhotos.length > 0 || (project.reports || []).some(r => r.date === constructionDate);
-      if (shouldSave) {
-          onUpdateProject({ ...project, reports: [...otherReports, reportPayload], photos: updatedGlobalPhotos });
-      }
+      onUpdateProject({ ...project, reports: updatedReports, photos: updatedGlobalPhotos });
   };
 
   const handleReportPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -208,8 +274,10 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const handleAddItem = () => {
+    if (!currentReportId) return;
     const newItem: ConstructionItem = {
       id: crypto.randomUUID(),
+      reportId: currentReportId,
       name: currentStandardItems[0].name,
       unit: currentStandardItems[0].unit,
       quantity: '',
@@ -222,9 +290,11 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const handleAddCustomItem = () => {
+    if (!currentReportId) return;
     if (!customItem.name) return;
     const newItem: ConstructionItem = {
       id: crypto.randomUUID(),
+      reportId: currentReportId,
       name: customItem.name,
       quantity: customItem.quantity,
       unit: customItem.unit,
@@ -257,9 +327,20 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const handleHeaderWorkerChange = (val: string) => {
+    if (!currentReportId) return;
     setDailyWorker(val);
-    const updatedItems = (project.constructionItems || []).map(item => item.date === constructionDate ? { ...item, worker: val } : item);
-    onUpdateProject({ ...project, constructionItems: updatedItems });
+    
+    // Update report metadata
+    const updatedReports = (project.reports || []).map(r => 
+      r.id === currentReportId ? { ...r, worker: val } : r
+    );
+
+    // Update items linked to this report
+    const updatedItems = (project.constructionItems || []).map(item => 
+      item.reportId === currentReportId ? { ...item, worker: val } : item
+    );
+    
+    onUpdateProject({ ...project, reports: updatedReports, constructionItems: updatedItems });
   };
 
   const getAssistantList = () => {
@@ -292,11 +373,20 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const updateAssistantInItems = (joinedValue: string) => {
+    if (!currentReportId) return;
     setDailyAssistant(joinedValue);
-    const updatedItems = (project.constructionItems || []).map(item => 
-      item.date === constructionDate ? { ...item, assistant: joinedValue } : item
+    
+    // Update report metadata
+    const updatedReports = (project.reports || []).map(r => 
+      r.id === currentReportId ? { ...r, assistant: joinedValue } : r
     );
-    onUpdateProject({ ...project, constructionItems: updatedItems });
+
+    // Update items linked to this report
+    const updatedItems = (project.constructionItems || []).map(item => 
+      item.reportId === currentReportId ? { ...item, assistant: joinedValue } : item
+    );
+    
+    onUpdateProject({ ...project, reports: updatedReports, constructionItems: updatedItems });
   };
 
   const handleAssistantInputKeyDown = (e: React.KeyboardEvent) => {
@@ -350,14 +440,25 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
 
   const handleSubmitLog = () => setIsEditing(false);
 
-  const generateReportPDF = async (date: string) => {
+  const generateReportPDF = async (date: string, reportId?: string) => {
     if (typeof html2canvas === 'undefined' || typeof jspdf === 'undefined') {
         alert("必要元件尚未載入"); return;
     }
     setIsGeneratingPDF(true);
-    const items = (project.constructionItems || []).filter(i => i.date === date);
-    const report = (project.reports || []).find(r => r.date === date);
-    const signature = (project.constructionSignatures || []).find(s => s.date === date);
+    
+    let items = (project.constructionItems || []);
+    let report: DailyReport | undefined;
+    let signature: ConstructionSignature | undefined;
+
+    if (reportId) {
+        items = items.filter(i => i.reportId === reportId);
+        report = (project.reports || []).find(r => r.id === reportId);
+        signature = (project.constructionSignatures || []).find(s => s.reportId === reportId);
+    } else {
+        items = items.filter(i => i.date === date);
+        report = (project.reports || []).find(r => r.date === date);
+        signature = (project.constructionSignatures || []).find(s => s.date === date);
+    }
 
     // Prepare embedded JSON data
     const embeddedData = {
@@ -416,12 +517,22 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
     } catch (error) { alert("PDF 生成失敗"); } finally { document.body.removeChild(container); setIsGeneratingPDF(false); }
   };
 
-  const generateReportExcel = async (date: string) => {
+  const generateReportExcel = async (date: string, reportId?: string) => {
     setIsGeneratingExcel(true);
     try {
-        const items = (project.constructionItems || []).filter(i => i.date === date);
-        const report = (project.reports || []).find(r => r.date === date);
-        const signature = (project.constructionSignatures || []).find(s => s.date === date);
+        let items = (project.constructionItems || []);
+        let report: DailyReport | undefined;
+        let signature: ConstructionSignature | undefined;
+
+        if (reportId) {
+            items = items.filter(i => i.reportId === reportId);
+            report = (project.reports || []).find(r => r.id === reportId);
+            signature = (project.constructionSignatures || []).find(s => s.reportId === reportId);
+        } else {
+            items = items.filter(i => i.date === date);
+            report = (project.reports || []).find(r => r.date === date);
+            signature = (project.constructionSignatures || []).find(s => s.date === date);
+        }
         
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet(date);
@@ -639,12 +750,17 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
             const worksheet = workbook.addWorksheet(locName.substring(0, 31)); // Excel 工作表名稱限制 31 字元
             const groupItems = locationGroups[locName];
 
-            // 整理此位置下的所有施作欄位 (以日期 + 師傅作為唯一紀錄)
-            const sessionsMap: Record<string, { date: string, worker: string, location: string }> = {};
+            // 整理此位置下的所有施作欄位 (以 ReportID 或 日期+師傅 作為唯一紀錄)
+            const sessionsMap: Record<string, { date: string, worker: string, location: string, reportId?: string }> = {};
             groupItems.forEach(item => {
-                const key = `${item.date}_${item.worker}`;
+                const key = item.reportId || `${item.date}_${item.worker}`;
                 if (!sessionsMap[key]) {
-                    sessionsMap[key] = { date: item.date, worker: item.worker, location: item.location || '' };
+                    sessionsMap[key] = { 
+                        date: item.date, 
+                        worker: item.worker, 
+                        location: item.location || '',
+                        reportId: item.reportId 
+                    };
                 }
             });
             const sortedSessionKeys = Object.keys(sessionsMap).sort();
@@ -706,9 +822,16 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
                 
                 sortedSessionKeys.forEach((sessionKey, colOffset) => {
                     const sessionData = sessionsMap[sessionKey];
-                    const match = groupItems.find(i => i.date === sessionData.date && i.worker === sessionData.worker && i.name === stdItem.name);
+                    const match = groupItems.find(i => {
+                        if (sessionData.reportId) {
+                            return i.reportId === sessionData.reportId && i.name === stdItem.name;
+                        }
+                        return i.date === sessionData.date && i.worker === sessionData.worker && i.name === stdItem.name;
+                    });
                     if (match) {
-                        row.getCell(4 + colOffset).value = parseFloat(match.quantity) || match.quantity;
+                        const cell = row.getCell(4 + colOffset);
+                        cell.value = parseFloat(match.quantity) || match.quantity;
+                        cell.alignment = centerAlign as any;
                     }
                 });
             });
@@ -733,9 +856,16 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
 
                     sortedSessionKeys.forEach((sessionKey, colOffset) => {
                         const sessionData = sessionsMap[sessionKey];
-                        const match = otherItems.find(i => i.date === sessionData.date && i.worker === sessionData.worker && i.name === name);
+                        const match = otherItems.find(i => {
+                            if (sessionData.reportId) {
+                                return i.reportId === sessionData.reportId && i.name === name;
+                            }
+                            return i.date === sessionData.date && i.worker === sessionData.worker && i.name === name;
+                        });
                         if (match) {
-                            row.getCell(4 + colOffset).value = parseFloat(match.quantity) || match.quantity;
+                            const cell = row.getCell(4 + colOffset);
+                            cell.value = parseFloat(match.quantity) || match.quantity;
+                            cell.alignment = centerAlign as any;
                         }
                     });
                     currentOtherRow++;
@@ -761,13 +891,9 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const renderConstructionOverview = () => {
-    const groupedItems = (project.constructionItems || []).reduce((acc: any, item) => {
-      if (!acc[item.date]) acc[item.date] = { date: item.date, worker: item.worker, assistant: item.assistant, count: 0 };
-      acc[item.date].count++;
-      if (!acc[item.date].worker) acc[item.date].worker = item.worker;
-      return acc;
-    }, {});
-    const sortedDates = Object.values(groupedItems).sort((a: any, b: any) => b.date.localeCompare(a.date)) as any[];
+    // Group reports by ID instead of date
+    const reports = (project.reports || []).sort((a, b) => b.date.localeCompare(a.date));
+
     return (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden min-h-[500px]">
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -780,18 +906,24 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
             >
               <DownloadIcon className="w-5 h-5" />
             </button>
-            {canEdit && <button onClick={() => { setConstructionDate(new Date().toISOString().split('T')[0]); setIsEditing(true); setConstructionMode('entry'); }} className="bg-blue-600 hover:bg-blue-700 text-white w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-colors"><PlusIcon className="w-6 h-6" /></button>}
+            {canEdit && <button onClick={createNewReport} className="bg-blue-600 hover:bg-blue-700 text-white w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-colors"><PlusIcon className="w-6 h-6" /></button>}
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold"><tr><th className="px-6 py-4">日期 (Ngày)</th><th className="px-6 py-4">師傅 (Thợ chính)</th><th className="px-6 py-4 text-center">簽證 (Ký)</th><th className="px-6 py-4 text-right">操作 (Lệnh)</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{sortedDates.length > 0 ? sortedDates.map((item: any) => (
-              <tr key={item.date} onClick={() => { setConstructionDate(item.date); setIsEditing(false); setConstructionMode('entry'); }} className="hover:bg-slate-50 transition-colors cursor-pointer group">
-                <td className="px-6 py-4 font-medium text-slate-800">{item.date}</td>
-                <td className="px-6 py-4 text-slate-600">{item.worker || '-'}</td>
-                <td className="px-6 py-4 text-center">{(project.constructionSignatures || []).some(s => s.date === item.date) ? <StampIcon className="w-5 h-5 text-green-600 mx-auto" /> : <XCircleIcon className="w-5 h-5 text-slate-300 mx-auto" />}</td>
-                <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2"><button onClick={(e) => { e.stopPropagation(); generateReportExcel(item.date); }} className="p-1.5 text-slate-400 hover:text-emerald-600 rounded" title="匯出 Excel"><DownloadIcon className="w-4 h-4" /></button><button onClick={(e) => { e.stopPropagation(); generateReportPDF(item.date); }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="匯出 PDF"><FileTextIcon className="w-4 h-4" /></button></div></td>
+            <tbody className="divide-y divide-slate-100">{reports.length > 0 ? reports.map((report) => (
+              <tr key={report.id} onClick={() => { setCurrentReportId(report.id); setConstructionMode('entry'); setIsEditing(false); }} className="hover:bg-slate-50 transition-colors cursor-pointer group">
+                <td className="px-6 py-4 font-medium text-slate-800">{report.date}</td>
+                <td className="px-6 py-4 text-slate-600">{report.worker || '-'}</td>
+                <td className="px-6 py-4 text-center">{(project.constructionSignatures || []).some(s => s.reportId === report.id) ? <StampIcon className="w-5 h-5 text-green-600 mx-auto" /> : <XCircleIcon className="w-5 h-5 text-slate-300 mx-auto" />}</td>
+                <td className="px-6 py-4 text-right">
+                  <div className="flex justify-end gap-2">
+                    <button onClick={(e) => { e.stopPropagation(); generateReportExcel(report.date, report.id); }} className="p-1.5 text-slate-400 hover:text-emerald-600 rounded" title="匯出 Excel"><DownloadIcon className="w-4 h-4" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); generateReportPDF(report.date, report.id); }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="匯出 PDF"><FileTextIcon className="w-4 h-4" /></button>
+                    {canEdit && <button onClick={(e) => { e.stopPropagation(); deleteReport(report.id); }} className="p-1.5 text-slate-400 hover:text-red-600 rounded" title="刪除日報"><TrashIcon className="w-4 h-4" /></button>}
+                  </div>
+                </td>
               </tr>
             )) : <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400">尚無紀錄 (Không có dữ liệu)</td></tr>}</tbody>
           </table>
@@ -801,7 +933,8 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const renderConstructionEntry = () => {
-    const visibleItems = (project.constructionItems || []).filter(item => item.date === constructionDate);
+    // Filter items by currentReportId
+    const visibleItems = (project.constructionItems || []).filter(item => item.reportId === currentReportId);
     const currentAssistants = getAssistantList();
 
     return (
@@ -809,18 +942,27 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         <div className="p-4 md:p-6 border-b border-slate-100 bg-slate-50/50 flex-shrink-0">
           <div className="flex flex-row justify-between items-center gap-4 mb-4">
               <div className="flex items-center gap-2">
-                 {!isMaintenance && <button onClick={() => setConstructionMode('overview')} className="text-slate-400 hover:text-slate-600 p-2 -ml-2"><ArrowLeftIcon className="w-5 h-5" /></button>}
+                 {!isMaintenance && <button onClick={() => { setConstructionMode('overview'); setCurrentReportId(null); }} className="text-slate-400 hover:text-slate-600 p-2 -ml-2"><ArrowLeftIcon className="w-5 h-5" /></button>}
                  <h3 className="font-bold text-lg text-slate-800">{isMaintenance ? '施工報告 (Báo cáo thi công)' : '編輯紀錄 (Sửa nhật ký)'}</h3>
               </div>
             <div className="flex items-center gap-1">
-                <button onClick={() => generateReportExcel(constructionDate)} disabled={isGeneratingExcel} className="p-2 text-slate-500 hover:text-emerald-600 rounded-full" title="匯出 Excel">{isGeneratingExcel ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <DownloadIcon className="w-5 h-5" />}</button>
-                <button onClick={() => generateReportPDF(constructionDate)} disabled={isGeneratingPDF} className="p-2 text-slate-500 hover:text-blue-600 rounded-full" title="匯出 PDF">{isGeneratingPDF ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <FileTextIcon className="w-5 h-5" />}</button>
+                <button onClick={() => generateReportExcel(constructionDate, currentReportId || undefined)} disabled={isGeneratingExcel} className="p-2 text-slate-500 hover:text-emerald-600 rounded-full" title="匯出 Excel">{isGeneratingExcel ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <DownloadIcon className="w-5 h-5" />}</button>
+                <button onClick={() => generateReportPDF(constructionDate, currentReportId || undefined)} disabled={isGeneratingPDF} className="p-2 text-slate-500 hover:text-blue-600 rounded-full" title="匯出 PDF">{isGeneratingPDF ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <FileTextIcon className="w-5 h-5" />}</button>
                 {signatureData && <div className="text-green-600 flex items-center gap-1 text-xs font-bold border border-green-200 bg-green-50 px-2 py-1 rounded ml-1"><StampIcon className="w-3.5 h-3.5" /><span>已簽證</span></div>}
             </div>
           </div>
           <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
             <label className="block text-xs font-semibold text-slate-500 mb-1">日期 (Ngày)</label>
-            <input type="date" value={constructionDate} disabled={!isEditing || !canEdit} onChange={(e) => setConstructionDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white font-bold" />
+            <input type="date" value={constructionDate} disabled={!isEditing || !canEdit} onChange={(e) => {
+                const newDate = e.target.value;
+                setConstructionDate(newDate);
+                if (currentReportId) {
+                    const updatedReports = (project.reports || []).map(r => r.id === currentReportId ? { ...r, date: newDate } : r);
+                    const updatedItems = (project.constructionItems || []).map(i => i.reportId === currentReportId ? { ...i, date: newDate } : i);
+                    const updatedSignatures = (project.constructionSignatures || []).map(s => s.reportId === currentReportId ? { ...s, date: newDate } : s);
+                    onUpdateProject({ ...project, reports: updatedReports, constructionItems: updatedItems, constructionSignatures: updatedSignatures });
+                }
+            }} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white font-bold" />
           </div>
         </div>
 

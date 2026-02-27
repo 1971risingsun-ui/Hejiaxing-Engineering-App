@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs } from '../types';
-import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon, BoxIcon, FileTextIcon, DownloadIcon, StampIcon, UploadIcon } from './Icons';
+import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon, BoxIcon, FileTextIcon, DownloadIcon, StampIcon, UploadIcon, StarIcon } from './Icons';
 
 interface ProjectListProps {
   title?: string;
@@ -19,6 +19,7 @@ interface ProjectListProps {
   onImportConstructionReports?: () => void;
   onImportCompletionReports?: () => void;
   onAddToSchedule?: (date: string, teamId: number, taskName: string) => boolean;
+  onToggleFavorite?: (project: Project) => void;
   globalTeamConfigs?: GlobalTeamConfigs;
 }
 
@@ -26,7 +27,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
   title, projects, currentUser, lastUpdateInfo, onSelectProject, onAddProject, 
   onDeleteProject, onDuplicateProject, onEditProject, onOpenDrivingTime,
   onImportExcel, onExportExcel, onImportConstructionRecords, onImportConstructionReports, onImportCompletionReports,
-  onAddToSchedule, globalTeamConfigs
+  onAddToSchedule, onToggleFavorite, globalTeamConfigs
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'ALL'>('ALL');
@@ -151,6 +152,13 @@ const ProjectList: React.FC<ProjectListProps> = ({
       }, 1500);
     } else {
       alert('該案件已在排程中');
+    }
+  };
+
+  const handleToggleFavorite = (e: React.MouseEvent, project: Project) => {
+    e.stopPropagation();
+    if (onToggleFavorite) {
+        onToggleFavorite(project);
     }
   };
 
@@ -377,6 +385,15 @@ const ProjectList: React.FC<ProjectListProps> = ({
                                         </div>
                                         
                                         <div className="flex items-center gap-1">
+                                            {onToggleFavorite && (
+                                                <button 
+                                                    onClick={(e) => handleToggleFavorite(e, project)}
+                                                    className={`p-2 rounded-full transition-colors ${project.isFavorite ? 'text-yellow-400 hover:text-yellow-500' : 'text-slate-300 hover:text-yellow-400'}`}
+                                                    title={project.isFavorite ? "移除最愛" : "加入最愛"}
+                                                >
+                                                    <StarIcon className="w-5 h-5" fill={project.isFavorite ? "currentColor" : "none"} />
+                                                </button>
+                                            )}
                                             {canManageProject && (
                                                 <div className="relative">
                                                     <button 
@@ -500,6 +517,15 @@ const ProjectList: React.FC<ProjectListProps> = ({
                                             {canManageProject && (
                                                 <td className="px-6 py-4 align-top text-right" onClick={e => e.stopPropagation()}>
                                                     <div className="flex items-center justify-end gap-1">
+                                                        {onToggleFavorite && (
+                                                            <button 
+                                                                onClick={(e) => handleToggleFavorite(e, project)}
+                                                                className={`p-2 rounded-xl transition-all ${project.isFavorite ? 'text-yellow-400 hover:text-yellow-500' : 'text-slate-300 hover:text-yellow-400 hover:bg-yellow-50'}`}
+                                                                title={project.isFavorite ? "移除最愛" : "加入最愛"}
+                                                            >
+                                                                <StarIcon className="w-5 h-5" fill={project.isFavorite ? "currentColor" : "none"} />
+                                                            </button>
+                                                        )}
                                                         <button onClick={(e) => handleOpenScheduleDialog(e, project)} className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="加入排程">
                                                             <PlusIcon className="w-5 h-5" />
                                                         </button>

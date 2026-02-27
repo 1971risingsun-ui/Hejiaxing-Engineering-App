@@ -342,6 +342,14 @@ const EngineeringView: React.FC<EngineeringViewProps> = ({
     }
   };
 
+  const handleToggleFavorite = (project: Project) => {
+    const updatedProjects = projects.map(p => 
+      p.id === project.id ? { ...p, isFavorite: !p.isFavorite } : p
+    );
+    setProjects(updatedProjects);
+    updateLastAction(project.name, project.isFavorite ? '移除最愛' : '加入最愛');
+  };
+
   return (
     <>
       <ProjectList 
@@ -361,6 +369,7 @@ const EngineeringView: React.FC<EngineeringViewProps> = ({
         onImportConstructionRecords={() => recordInputRef.current?.click()}
         onImportConstructionReports={() => reportInputRef.current?.click()}
         onImportCompletionReports={() => completionInputRef.current?.click()}
+        onToggleFavorite={handleToggleFavorite}
         globalTeamConfigs={globalTeamConfigs} 
       />
       <input type="file" accept=".xlsx, .xls" ref={excelInputRef} className="hidden" onChange={handleImportExcel} />

@@ -27,7 +27,7 @@ import SyncDecisionCenter from './components/SyncDecisionCenter';
 import AuditLogList from './components/AuditLogList';
 import DrivingTimeEstimator from './components/DrivingTimeEstimator';
 import ReportTrackingView from './components/ReportTrackingView';
-import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, UsersIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon, HistoryIcon, MapPinIcon } from './components/Icons';
+import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, UsersIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon, HistoryIcon, MapPinIcon, StarIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
 import { generateId, sortProjects, mergeAppState, computeDiffs, getProjectDiffMessage, mergeLists } from './utils/dataLogic';
@@ -76,7 +76,7 @@ const App: React.FC = () => {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [view, setView] = useState<'update_log' | 'engineering' | 'engineering_hub' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'purchasing_inbounds' | 'production' | 'hr' | 'equipment' | 'equipment_tools' | 'equipment_assets' | 'equipment_vehicles' | 'report' | 'users' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'outsourcing' | 'report_tracking'>('engineering');
+  const [view, setView] = useState<'update_log' | 'engineering' | 'engineering_hub' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'purchasing_inbounds' | 'production' | 'hr' | 'equipment' | 'equipment_tools' | 'equipment_assets' | 'equipment_vehicles' | 'report' | 'users' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'outsourcing' | 'report_tracking' | 'favorites'>('engineering');
 
   const employeeNicknames = useMemo(() => employees.map(e => e.nickname || e.name).filter(Boolean), [employees]);
 
@@ -359,6 +359,24 @@ const App: React.FC = () => {
         {isViewAllowed('engineering') && <button onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering' && !selectedProject ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><LayoutGridIcon className="w-5 h-5" /> <span className="font-medium">工務總覽</span></button>}
         {isViewAllowed('engineering_hub') && <button onClick={() => { setSelectedProject(null); setView('engineering_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_hub' || ['weekly_schedule','daily_dispatch','engineering_groups','driving_time','outsourcing','report_tracking'].includes(view) ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><BriefcaseIcon className="w-5 h-5" /> <span className="font-medium">工作排程</span></button>}
         {isViewAllowed('report') && <button onClick={() => { setSelectedProject(null); setView('report'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'report' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">工作回報</span></button>}
+        <button onClick={() => { setSelectedProject(null); setView('favorites'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'favorites' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><StarIcon className="w-5 h-5" /> <span className="font-medium">我的最愛</span></button>
+        
+        {/* Favorite Projects List */}
+        {projects.some(p => p.isFavorite) && (
+          <div className="pl-12 pr-4 space-y-1 mt-1 mb-3 animate-fade-in">
+             {projects.filter(p => p.isFavorite).map(p => (
+               <button 
+                 key={p.id}
+                 onClick={() => { setSelectedProject(p); setIsSidebarOpen(false); }}
+                 className="w-full text-left text-xs font-bold text-slate-400 hover:text-white py-2 truncate transition-colors flex items-center gap-2 group"
+               >
+                 <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 flex-shrink-0 group-hover:scale-125 transition-transform"></div>
+                 <span className="truncate">{p.name}</span>
+               </button>
+             ))}
+          </div>
+        )}
+
         <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">行政管理</div>
         {isViewAllowed('purchasing_hub') && <button onClick={() => { setSelectedProject(null); setView('purchasing_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('purchasing') || view === 'stock_alert' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><BoxIcon className="w-5 h-5" /> <span className="font-medium">採購管理</span></button>}
         {isViewAllowed('hr') && <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><UsersIcon className="w-5 h-5" /> <span className="font-medium">人事管理</span></button>}
@@ -367,10 +385,6 @@ const App: React.FC = () => {
         <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">系統輔助</div>
         {isViewAllowed('users') && <button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統帳號設定</span></button>}
         <div className="pt-4 border-t border-slate-800 mt-4 space-y-2">
-          <button onClick={() => handleDirectoryAction(false)} className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${dirHandle && dirPermission === 'granted' ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'}`}>
-            {isWorkspaceLoading ? <LoaderIcon className="w-5 h-5 animate-spin" /> : dirHandle && dirPermission === 'granted' ? <CheckCircleIcon className="w-5 h-5" /> : <AlertIcon className="w-5 h-5" />}
-            <div className="flex items-start text-left flex-col"><span className="text-sm font-bold">{dirHandle && dirPermission === 'granted' ? '電腦同步已開啟' : '未連結電腦目錄'}</span><span className="text-[10px] opacity-70">{dirHandle && lastSyncTime ? `最後: ${lastSyncTime}` : 'db.json 即時備份'}</span></div>
-          </button>
           <input type="file" accept=".json" ref={dbJsonInputRef} className="hidden" onChange={handleImportDbJson} />
           <button onClick={() => dbJsonInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-orange-600/10 border border-orange-500/30 text-orange-400 hover:bg-orange-600 hover:text-white group"><UploadIcon className="w-5 h-5" /><div className="flex items-start text-left flex-col"><span className="text-sm font-bold">匯入 db.json</span><span className="text-[10px] opacity-70">還原系統備份</span></div></button>
           <button onClick={handleManualSaveAs} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600 hover:text-white group"><SaveIcon className="w-5 h-5" /><div className="flex items-start text-left flex-col"><span className="text-sm font-bold">手動另存新檔</span><span className="text-[10px] opacity-70">下載 db.json 到本機</span></div></button>
@@ -419,7 +433,8 @@ const App: React.FC = () => {
            view === 'equipment_assets' ? (<AssetManagement assets={assets} onUpdateAssets={(nl) => handleUpdateList(assets, nl, setAssets, '大型設備', '地點檢驗日')} />) :
            view === 'equipment_vehicles' ? (<VehicleManagement vehicles={vehicles} onUpdateVehicles={(nl) => handleUpdateList(vehicles, nl, setVehicles, '車輛', '里程保險')} employees={employees} />) :
            selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser!} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} systemRules={systemRules} /></div>) : 
-           view === 'engineering' ? (<EngineeringView projects={projects} setProjects={setProjects} currentUser={currentUser!} lastUpdateInfo={lastUpdateInfo} updateLastAction={updateLastAction} systemRules={systemRules} employees={employees} setAttendance={handleUpdateAttendance} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onEditProject={setEditingProject} handleDeleteProject={handleDeleteProject} onAddToSchedule={handleAddToSchedule} onOpenDrivingTime={() => setView('driving_time')} onTranslateAllProjects={handleTranslateAllProjects} globalTeamConfigs={globalTeamConfigs} />) : null}
+           view === 'engineering' ? (<EngineeringView projects={projects} setProjects={setProjects} currentUser={currentUser!} lastUpdateInfo={lastUpdateInfo} updateLastAction={updateLastAction} systemRules={systemRules} employees={employees} setAttendance={handleUpdateAttendance} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onEditProject={setEditingProject} handleDeleteProject={handleDeleteProject} onAddToSchedule={handleAddToSchedule} onOpenDrivingTime={() => setView('driving_time')} onTranslateAllProjects={handleTranslateAllProjects} globalTeamConfigs={globalTeamConfigs} />) :
+           view === 'favorites' ? (<EngineeringView projects={projects.filter(p => p.isFavorite)} setProjects={setProjects} currentUser={currentUser!} lastUpdateInfo={lastUpdateInfo} updateLastAction={updateLastAction} systemRules={systemRules} employees={employees} setAttendance={handleUpdateAttendance} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onEditProject={setEditingProject} handleDeleteProject={handleDeleteProject} onAddToSchedule={handleAddToSchedule} onOpenDrivingTime={() => setView('driving_time')} onTranslateAllProjects={handleTranslateAllProjects} globalTeamConfigs={globalTeamConfigs} />) : null}
         </main>
       </div>
     </div>
