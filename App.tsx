@@ -379,13 +379,22 @@ const App: React.FC = () => {
           </div>
         )}
 
-        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">行政管理</div>
-        {isViewAllowed('purchasing_hub') && <button onClick={() => { setSelectedProject(null); setView('purchasing_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('purchasing') || view === 'stock_alert' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><BoxIcon className="w-5 h-5" /> <span className="font-medium">採購管理</span></button>}
-        {isViewAllowed('hr') && <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><UsersIcon className="w-5 h-5" /> <span className="font-medium">人事管理</span></button>}
-        {isViewAllowed('production') && <button onClick={() => { setSelectedProject(null); setView('production'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'production' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><PenToolIcon className="w-5 h-5" /> <span className="font-medium">生產／備料</span></button>}
-        {isViewAllowed('equipment') && <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' || view.startsWith('equipment_') ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><WrenchIcon className="w-5 h-5" /> <span className="font-medium">設備／工具</span></button>}
-        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">系統輔助</div>
-        {isViewAllowed('users') && <button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統帳號設定</span></button>}
+        {(isViewAllowed('purchasing_hub') || isViewAllowed('hr') || isViewAllowed('production') || isViewAllowed('equipment')) && (
+          <>
+            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">行政管理</div>
+            {isViewAllowed('purchasing_hub') && <button onClick={() => { setSelectedProject(null); setView('purchasing_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('purchasing') || view === 'stock_alert' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><BoxIcon className="w-5 h-5" /> <span className="font-medium">採購管理</span></button>}
+            {isViewAllowed('hr') && <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><UsersIcon className="w-5 h-5" /> <span className="font-medium">人事管理</span></button>}
+            {isViewAllowed('production') && <button onClick={() => { setSelectedProject(null); setView('production'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'production' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><PenToolIcon className="w-5 h-5" /> <span className="font-medium">生產／備料</span></button>}
+            {isViewAllowed('equipment') && <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' || view.startsWith('equipment_') ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><WrenchIcon className="w-5 h-5" /> <span className="font-medium">設備／工具</span></button>}
+          </>
+        )}
+        
+        {isViewAllowed('users') && (
+          <>
+            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">系統輔助</div>
+            <button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統帳號設定</span></button>
+          </>
+        )}
         <div className="pt-4 border-t border-slate-800 mt-4 space-y-2">
           <input type="file" accept=".json" ref={dbJsonInputRef} className="hidden" onChange={handleImportDbJson} />
           <button onClick={() => dbJsonInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-orange-600/10 border border-orange-500/30 text-orange-400 hover:bg-orange-600 hover:text-white group"><UploadIcon className="w-5 h-5" /><div className="flex items-start text-left flex-col"><span className="text-sm font-bold">匯入 db.json</span><span className="text-[10px] opacity-70">還原系統備份</span></div></button>
