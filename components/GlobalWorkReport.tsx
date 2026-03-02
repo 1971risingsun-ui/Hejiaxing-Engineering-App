@@ -404,7 +404,29 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
     }
 
     // 全部案場處理完畢，下載檔案
-    downloadBlob(pdf.output('blob'), `${selectedDate}_${currentUser.name}_合家興工作彙整.pdf`);
+    const pdfBlob = pdf.output('blob');
+    const fileName = `${selectedDate}_${currentUser.name}_合家興工作彙整.pdf`;
+
+    if (navigator.share && navigator.canShare) {
+        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+        if (navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    files: [file],
+                    title: fileName,
+                    text: `合家興工作回報綜合彙整 - ${selectedDate}`
+                });
+            } catch (shareError) {
+                if ((shareError as Error).name !== 'AbortError') {
+                    downloadBlob(pdfBlob, fileName);
+                }
+            }
+        } else {
+            downloadBlob(pdfBlob, fileName);
+        }
+    } else {
+        downloadBlob(pdfBlob, fileName);
+    }
     setIsGeneratingPDF(false);
   };
 
